@@ -4,9 +4,9 @@ import {
   ASSUMPTION_FIELDS,
   DEFAULT_ASSUMPTIONS,
   clampAssumption,
+  formatAssumption,
   isCustomised,
 } from '@/lib/assumptions';
-import { fullItems } from '@/lib/format';
 import type { Assumptions } from '@/lib/types';
 
 interface Props {
@@ -74,7 +74,7 @@ export function AssumptionsPanel({ assumptions, onChange }: Props) {
                 aria-describedby={`a-${field.key}-help`}
               />
               <span id={`a-${field.key}-help`} className="visually-hidden">
-                {field.help} Default {field.scale === 'usd' ? `$${DEFAULT_ASSUMPTIONS[field.key].toFixed(2)}` : fullItems(DEFAULT_ASSUMPTIONS[field.key])}.
+                {field.help} Default {formatAssumption(field, DEFAULT_ASSUMPTIONS[field.key])}.
               </span>
             </div>
           );

@@ -424,3 +424,13 @@ test.describe('memory cost estimate', () => {
     expect(overflow).toBe(false);
   });
 });
+
+test.describe('assumptions panel labels', () => {
+  test('states the real defaults for the multipliers', async ({ page }) => {
+    await page.goto('./');
+    await expect(page.locator('#a-hnswMemoryOverhead-help')).toContainText('Default 1.5.');
+    await expect(page.locator('#a-headroom-help')).toContainText('Default 1.3.');
+    await expect(page.locator('input[data-assumption="hnswMemoryOverhead"]')).toHaveValue('1.5');
+    await expect(page.locator('input[data-assumption="headroom"]')).toHaveValue('1.3');
+  });
+});

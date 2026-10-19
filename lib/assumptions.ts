@@ -1,3 +1,4 @@
+import { fullItems } from './format';
 import { DEFAULT_PRICE_RANGE } from './prices';
 import type { Assumptions } from './types';
 
@@ -154,3 +155,13 @@ export const COST_ASSUMPTIONS: ReadonlySet<keyof Assumptions> = new Set([
   'priceLowPerGbMonth',
   'priceHighPerGbMonth',
 ]);
+
+/**
+ * An assumption value as a reader should see it. Item counts are whole numbers;
+ * everything else keeps its decimals, so a 1.5 multiplier never reads as 2.
+ */
+export function formatAssumption(field: Pick<AssumptionField, 'scale'>, value: number): string {
+  if (field.scale === 'items') return fullItems(value);
+  if (field.scale === 'usd') return `$${value.toFixed(2)}`;
+  return value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}

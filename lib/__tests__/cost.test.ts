@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COST_ASSUMPTIONS, DEFAULT_ASSUMPTIONS } from '../assumptions';
+import { ASSUMPTION_FIELDS, COST_ASSUMPTIONS, DEFAULT_ASSUMPTIONS, formatAssumption } from '../assumptions';
 import { costRange, costSeries, memoryCost, memoryNeededGb } from '../compute';
 import { decide, hasMemoryEstimate } from '../decision';
 import { costEstimate, decisionRecordJson, decisionRecordMarkdown } from '../exportRecord';
@@ -193,5 +193,21 @@ describe('cost inputs travel with the record but not in telemetry', () => {
     const p = buildPayload(DEFAULT_WORKLOAD, edited, decide(DEFAULT_WORKLOAD, edited), 'organic');
     for (const k of COST_ASSUMPTIONS) expect(p.assumptionsChanged).not.toContain(k);
     expect(JSON.stringify(p)).not.toMatch(/price|headroom|9\.5/i);
+  });
+});
+
+describe('assumption labels', () => {
+  it('shows every default exactly, never rounded', () => {
+    for (const field of ASSUMPTION_FIELDS) {
+      const label = formatAssumption(field, A[field.key]);
+      expect(Number(label.replace(/[$,]/g, '')), `${field.key} -> ${label}`).toBe(A[field.key]);
+    }
+  });
+
+  it('keeps the decimals on multipliers', () => {
+    expect(formatAssumption({ scale: 'factor' }, 1.5)).toBe('1.5');
+    expect(formatAssumption({ scale: 'factor' }, 1.3)).toBe('1.3');
+    expect(formatAssumption({ scale: 'items' }, 1_000_000)).toBe('1,000,000');
+    expect(formatAssumption({ scale: 'usd' }, 5.6)).toBe('$5.60');
   });
 });

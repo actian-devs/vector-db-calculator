@@ -139,11 +139,11 @@ or inside an air-gapped network.
 
 ## Tests
 
-172 in total. Run both before pushing.
+176 in total. Run both before pushing.
 
 ```bash
-npm run test       # 96 unit tests: decision model, cost model, formatting, URL state, price refresh
-npm run test:e2e   # 76 browser tests, desktop and mobile, against the built export (3 are viewport-specific skips)
+npm run test       # 98 unit tests: decision model, cost model, formatting, URL state, price refresh
+npm run test:e2e   # 78 browser tests, desktop and mobile, against the built export (3 are viewport-specific skips)
 ```
 
 The unit tests pin the model: tier outcomes, that assumptions actually drive the result, that
