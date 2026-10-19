@@ -1,138 +1,137 @@
 # Do you need a vector database?
 
-A single-page calculator that takes a developer's agent or RAG workload and returns one honest recommendation, from a flat file up to a dedicated vector database. Built as the landing page for paid newsletter and social campaigns.
+A sizing tool for Actian VectorAI DB. It takes a description of an agent or RAG workload and
+returns one honest recommendation, from a flat file up to a dedicated vector database.
 
 Live: https://actian-devs.github.io/vector-db-calculator/
 
+## Quick start
+
+```bash
+npm ci
+npm run dev          # http://localhost:3000
+npm run verify       # typecheck, unit tests, build
+npm run test:e2e     # end-to-end against the built export
+```
+
+Node 22 or newer.
+
 ## What it does
 
-Eleven questions (item count, 12-month growth, embedding dimensions, latency target, peak QPS, metadata filtering, matching type, change rate, tenancy, data residency, existing Postgres) produce one of four verdicts:
+Eleven inputs across five groups (workload size, performance target, query shape, operations,
+deployment) produce one of four verdicts:
 
 | Tier | Verdict | When |
 |---|---|---|
-| 0 | You don't need a vector database yet | A flat in-memory scan fits the item count at the chosen latency target, with no filtering, one workspace, and low QPS |
-| 1 | You need keyword search, not vectors | Queries are exact terms (IDs, names, titles, code symbols) rather than meaning |
-| 2 | pgvector will carry you for now | Up to roughly 1M items, light filtering, modest concurrency |
-| 3 | You need a dedicated vector database | Heavy filtering at scale, past ~1M items, hybrid search, constant updates and deletes, multi-tenant isolation, or air-gapped and edge deployment |
+| 0 | You don't need a vector database yet | A flat in-memory scan fits at the chosen latency target, with no filtering, one workspace, low concurrency |
+| 1 | You need keyword search, not vectors | Queries are exact terms rather than meaning |
+| 2 | pgvector will carry you for now | Within the single-Postgres ceiling, light filtering, modest concurrency |
+| 3 | You need a dedicated vector database | Heavy filtering at scale, past the ceiling, hybrid search, constant churn, multi-tenant isolation, or air-gapped and edge deployment |
 
-The result panel updates live as inputs change, so there is no submit step.
+The verdict recalculates on every change. There is no submit step.
 
-## Honesty constraints (please keep these)
+### What makes it usable for a real decision
 
-These are deliberate and should survive future edits.
+- **Every assumption is editable.** The thresholds and the throughput range are visible in an
+  assumptions panel and can be replaced with figures from your own hardware. The verdict
+  recalculates, and what you set travels with the shared link.
+- **Today against twelve months.** The cost table shows both, so the consequence of the growth
+  setting is visible rather than folded into one number.
+- **Each reason is traceable.** Reasons that come from a threshold record which assumption
+  produced them.
+- **The result can leave the page.** Copy it as Markdown for an ADR or a ticket, or download
+  JSON. The record carries the assumptions actually used, so a reviewer can tell whether the
+  model was calibrated or taken as shipped.
 
-- **No benchmark, no charts, no performance table, and no VectorAI DB latency or recall figures.** Tier 3 is reached because of the shape of the workload, then the product pages carry the proof.
-- **No competitor performance claims.** The comparison posts are linked, and no numbers are restated on this page.
-- **Footprint and comparison counts are exact arithmetic** for the chosen inputs. The tier break points are labeled in the UI as a rough guide, not a measurement.
-- **The brute-force latency figure is shown as an order-of-magnitude range** with the throughput assumption stated inline.
-- **Tier 0 and Tier 1 are real outcomes.** A reader who is told they do not need the product is the reason this page is credible. Do not tune the thresholds to push more people into Tier 3.
+## Architecture
 
-## Interface
+`lib/` is the decision model and is framework-free. It imports nothing from React or the DOM,
+so it is unit tested directly and could be reused elsewhere. Components are presentational;
+`components/Calculator.tsx` owns state and wires the two together.
 
-Two panes on a light background. The left pane holds the eleven inputs grouped into five collapsible sections (workload size, performance target, query shape, operations, deployment). The right pane is the insight panel: verdict card, an animated arc gauge showing where the workload sits on a log scale with the four tiers as a legend, a cost table comparing today against twelve months out, the reasons behind the verdict, and the reads and calls to action.
+Static export, so the build is plain files with no server. It runs on GitHub Pages, any CDN,
+or inside an air-gapped network.
 
-The right pane is sticky on desktop, so the verdict stays beside the controls and recomputes as you change anything. There is no submit step.
+## Tests
 
-### Animation
+87 in total. Run both before pushing.
 
-Three things animate, all tied to a change the user made rather than to page load:
+```bash
+npm run test       # 52 unit tests over the decision model, formatting and URL state
+npm run test:e2e   # 35 browser tests, desktop and mobile, against the built export
+```
 
-- The arc gauge sweeps to its new position over 620ms.
-- Every number in the cost table counts to its new value over 420ms with a cubic ease-out, re-formatting each frame so units change cleanly (MB to GB and so on).
-- The active tier in the gauge legend fades and scales up as the verdict changes.
+The unit tests pin the model: tier outcomes, that assumptions actually drive the result, that
+growth is decided on the twelve-month count, and that hostile query strings fall back rather
+than breaking. Several cases exist to catch thresholds being tuned toward the paid tier.
 
-All of it is disabled under `prefers-reduced-motion`, where values are set directly.
+The end-to-end tests pin what only a browser can show: that the UI is wired to the model, that
+a shared link reproduces a result exactly, and that the privacy claims hold at runtime. Two of
+them assert the page makes zero third-party requests and sets no cookies. Treat those as the
+contract behind the footer claim.
 
-### Responsive
+## Privacy and telemetry
 
-Below 1000px the panes stack and a slim sticky bar appears at the top carrying the live tier badge and verdict, so the result stays visible while answering on a phone. Below 560px the field grid collapses to one column.
+The page makes **no third-party requests**. Fonts are self-hosted, both SIL OFL 1.1, licences
+in `fonts/`. Nothing is sent to an analytics vendor, a tag manager or a CDN.
 
-## Privacy
+There is optional **first-party anonymous telemetry**, which exists to give the team the
+distribution of workload shapes people evaluate as evidence for pricing. It sends the eleven
+inputs, the resulting tier and which assumptions were overridden by name. It carries no
+cookie, no persistent identifier and nothing about the person.
 
-No cookies, no analytics, no third-party requests. The two typefaces are self-hosted from `fonts/` rather than loaded from a CDN, which matters for a product positioned on data sovereignty, and it keeps the page working inside a locked-down network. Answers are held in the URL query string and never leave the browser.
+It is **off unless an endpoint is configured**, so the tool ships inert.
 
-Both faces are SIL Open Font License 1.1 and redistributable, with the licences committed alongside them:
+### Before turning it on
 
-- Archivo (headings and prose), weights 500, 600, 700
-- JetBrains Mono (all numerals, labels and controls), weights 400, 500, 700
+Two obligations the client code cannot enforce:
 
-Only the latin subset is included, six woff2 files totalling about 108 KB. The two faces used above the fold are preloaded.
+1. **Get legal sign-off.** The audience is substantially EU-based and the product is positioned
+   on GDPR and data sovereignty. Confirm the lawful basis before collecting anything.
+2. **The receiving endpoint must not log IP addresses.** If it does, the collection stops being
+   anonymous and the disclosure on the page becomes false.
+
+Then set the repository variable `TELEMETRY_ENDPOINT` to a first-party Actian URL. The workflow
+passes it through as `NEXT_PUBLIC_TELEMETRY_ENDPOINT` at build time.
+
+Once configured, the page shows a visible disclosure explaining what is sent and why, with an
+opt-out. It renders only when an endpoint is set, so the page never claims to send something it
+does not send. Do Not Track and Global Privacy Control are honoured regardless.
 
 ## Campaign tracking
 
-Every outbound link is tagged at runtime:
+Every outbound link is tagged at render:
 
 ```
-?utm_source=vector-db-calculator&utm_medium=hub&utm_campaign=<campaign>
+?utm_source=vector-db-calculator&utm_medium=hub&utm_campaign=<campaign>&utm_content=tier-<n>
 ```
 
-`<campaign>` is read from the page's own `utm_campaign` parameter, so a visitor arriving on
-`...?utm_campaign=7wdata` carries `7wdata` through to every blog and product link they click. It falls back to `organic`.
-
-Send campaign traffic to the page with the campaign set, for example:
+`<campaign>` is inherited from the page's own `utm_campaign`, so a visitor arriving on
+`...?utm_campaign=7wdata` carries it through to every blog and product link. It falls back to
+`organic`. `utm_content` carries the tier, so Actian's existing analytics can see which verdict
+drove a click without any tracking on this page.
 
 ```
 https://actian-devs.github.io/vector-db-calculator/?utm_campaign=7wdata
-https://actian-devs.github.io/vector-db-calculator/?utm_campaign=8020ai
 ```
 
-## Sharing a result
+## Deploy
 
-All eleven answers are encoded in the query string (`n`, `g`, `d`, `l`, `q`, `f`, `m`, `c`, `t`, `r`, `p`), so "Copy link to this result" produces a URL that restores the exact inputs. The `utm_campaign` parameter is preserved when state is written back.
+Push to `main`. `.github/workflows/deploy.yml` typechecks, lints, unit tests, audits
+dependencies, builds, runs end-to-end tests against the built export, then publishes to Pages.
 
-## Deploy to GitHub Pages
+Enable it once under **Settings, Pages, Source: GitHub Actions**.
 
-Static files with no build step.
+`BASE_PATH` is set from the repository name so asset paths resolve on a project site. If the
+site moves to a custom domain, set `NEXT_PUBLIC_SITE_URL` and clear `BASE_PATH`.
 
-```
-index.html
-og-image.png
-.nojekyll
-fonts/          six woff2 files plus the two OFL licences
-README.md
-```
+CI runs a plain `npm ci`. Omitting optional dependencies would also drop the platform binaries
+that rollup (used by Vitest) and Next's SWC compiler ship as optional packages, which breaks the
+test step. `sharp` gets installed but is never loaded, because `images.unoptimized` is set.
 
-**Option A, serve from the repository root (simplest):**
+## Working on this with an AI agent
 
-1. Create `vector-db-calculator` under the `actian-devs` org.
-2. Commit everything above to `main`.
-3. Settings, then Pages, then Source: Deploy from a branch. Branch: `main`, folder: `/ (root)`.
-
-**Option B, serve from `/docs`:**
-
-1. Move `index.html`, `og-image.png`, `.nojekyll` and the whole `fonts/` folder into `docs/`.
-2. Settings, then Pages, then Source: Deploy from a branch. Branch: `main`, folder: `/docs`.
-
-Keep `fonts/` next to `index.html` either way, since the `@font-face` and preload paths are relative.
-
-`.nojekyll` stops GitHub from running the files through Jekyll.
-
-After the first deploy, update the `og:url`, `canonical`, `og:image` and `twitter:image` tags in `index.html` if the final URL differs from `https://actian-devs.github.io/vector-db-calculator/`. The image tags use an absolute URL because X, LinkedIn and Slack ignore relative ones.
-
-## Run locally
-
-```
-python3 -m http.server 8000
-```
-
-Then open http://localhost:8000. Opening `index.html` directly from the filesystem also works.
-
-## Editing the thresholds
-
-The guidance values live in one object near the top of the script block:
-
-```js
-var CFG = {
-  flatUnder10ms: 1e4,
-  flatUnder50ms: 1e5,
-  flatUnder200ms: 1e6,
-  pgvectorGuide: 1e6,
-  heavyFilterStrainsAbove: 1e5
-};
-```
-
-Changing these shifts the tier boundaries and the colored bands on the ruler together. If these ever become measured rather than estimated, update the wording in the "How this tool decides" section at the same time so the page does not claim more than it can support.
-
-## Adding a link
-
-Outbound links in the hub are plain `<a href>` tags marked `data-out`, which get the UTM applied on load. Links shown in the result panel come from the `L` map in the script block, so add there and reference the key from `readsFor()`.
+`AGENTS.md` carries the context an agent needs and `.github/copilot-instructions.md` the
+condensed version. Point your assistant at `AGENTS.md` before letting it change anything. The
+honesty and privacy constraints here are easy to break by accident, and a generic "improve
+conversion" prompt will break them. The tests are written so that most such changes fail loudly.
