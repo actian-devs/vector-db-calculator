@@ -43,6 +43,7 @@ components.
 | `lib/decision.ts` | The tier model. The valuable part of the repo. |
 | `lib/format.ts` | Number and unit formatting. |
 | `lib/links.ts` | Every outbound URL, reading lists, UTM tagging. |
+| `lib/prices.ts` | Memory list prices from `data/memory-prices.json`, GiB to GB conversion, staleness. |
 | `lib/urlState.ts` | Encode and decode the whole state to the query string. |
 | `lib/exportRecord.ts` | Markdown and JSON decision records. |
 | `lib/telemetry.ts` | First-party anonymous telemetry. Read its header before touching it. |
@@ -56,11 +57,12 @@ from its result. Do not add a second source of truth.
 These are editorial and legal positions agreed with the client, not style preferences. Do not
 relax them, and do not work around them to "improve conversion".
 
-1. **No benchmark, charts, performance table, or any VectorAI DB latency or recall figure.**
-   The page reaches tier 3 from the shape of the workload, then hands off to the product
-   pages. Background: the only benchmark available ran VectorAI DB on a capacity-limited
-   trial licence, which makes the product look worse than pgvector. It is not publishable and
-   must not be reintroduced.
+1. **No benchmark, performance charts, performance table, or any VectorAI DB latency or
+   recall figure.** The page reaches tier 3 from the shape of the workload, then hands off to
+   the product pages. Background: the only benchmark available ran VectorAI DB on a
+   capacity-limited trial license, which makes the product look worse than pgvector. It is
+   not publishable and must not be reintroduced. The one chart allowed is the memory cost
+   chart: hardware list prices only, no Actian or competitor prices, no vendor names on it.
 2. **No competitor performance claims.** Comparison posts are linked. No numbers from them
    are restated here.
 3. **Tiers 0 and 1 are real outcomes and keep equal visual weight to tier 3.** Do not make
@@ -96,17 +98,20 @@ failure there as a regression in the argument, not a stale expectation.
 The product this page promotes is sold on data sovereignty, so the page has to hold to the
 same standard.
 
-- **No third-party requests, ever.** No Google Fonts, no analytics vendor, no tag manager, no
-  CDN script, no embedded iframe. Fonts are self-hosted via `next/font/local` from `fonts/`.
-  An end-to-end test asserts the running page makes zero external requests, and another
-  asserts it sets no cookies. Those tests are the contract.
+- **No cookies and no analytics vendor.** No Google Analytics, no tag manager, no Segment,
+  no Hotjar, no ad or tracking pixel. An end-to-end test asserts the page sets no cookies and
+  loads nothing from a known analytics or tag-manager domain. Those tests are the contract.
+  The earlier "zero third-party requests" rule was dropped by Henry; fonts are still
+  self-hosted from `fonts/` and nothing currently loads from another origin, so prefer to
+  keep it that way unless there is a reason.
 - **Telemetry is first-party, anonymous and off by default.** `lib/telemetry.ts` sends the
   workload shape and the resulting tier so the team can see what people actually size for,
-  as evidence for pricing. It is inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honours
+  as evidence for pricing. It is inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors
   Do Not Track and Global Privacy Control, uses no cookies and no persistent identifier, and
-  offers an opt-out. Do not add fields that could identify a person.
-- **Whatever the page claims must be true.** The footer says "No cookies and no third-party
-  trackers" and a test checks it. If you change what the page does, change the claim in the
+  offers an opt-out. Do not add fields that could identify a person. The memory cost inputs
+  (`COST_ASSUMPTIONS`) are never sent, not even their names, and a unit test checks it.
+- **Whatever the page claims must be true.** The footer says "No cookies and no analytics"
+  and a test checks it. If you change what the page does, change the claim in the
   same commit. The telemetry disclosure renders only when an endpoint is configured, so the
   page never says it sends something it does not send.
 
@@ -148,6 +153,26 @@ URL encoding and the exported record pick it up automatically.
 If any of these ever become measured rather than estimated, update the "How this tool decides"
 copy in `app/page.tsx` in the same change so the page does not claim more than it can support.
 
+## The memory cost estimate
+
+`components/InfraCostCard.tsx` and `components/CostChart.tsx` price the memory a workload
+needs. Hardware only: never a database price, Actian's or anyone else's.
+
+- Memory needed (decimal GB) = items x dims x 4 bytes x `hnswMemoryOverhead` x `headroom`.
+  Both multipliers are rules of thumb and stay labeled as estimates.
+- Monthly cost = memory x price per decimal GB-month, as low, mid and high. Prices come from
+  `data/memory-prices.json` (per-instance hourly list prices) through `lib/prices.ts`, which
+  converts per GiB to per decimal GB. Skipping that conversion overstates cost by about 7%.
+- Tiers 0, 2 and 3 show the estimate identically (`hasMemoryEstimate()`); tier 1 shows none.
+  Do not make it louder on tier 3.
+- The chart draws only what `costSeries()` computed, from the same functions as the card,
+  so the band, the tooltip and the screen-reader table cannot disagree.
+- Managed Postgres is a separate line and renders only when `managedPostgres` in the data
+  file has a verified entry. It is empty today.
+- `data/memory-prices.json` is rewritten weekly by `scripts/refresh-prices.mjs` through a
+  pull request a person reviews. Do not hand-edit prices without updating `fetchedAt` and
+  `sourceUrl`. Older than 60 days, the page shows a staleness warning.
+
 ## Adding or changing a link
 
 Every outbound URL must be verified live before it ships. Dead links on a paid campaign
@@ -174,9 +199,10 @@ Add it to `LINKS` in `lib/links.ts` and reference it from `readsFor()` or the hu
 
 ## Animation
 
-Three things animate, all responding to a user action rather than page load: the arc gauge
-sweep, the count-up on the cost table, and the active tier in the gauge legend. Do not add
-scroll-triggered reveals or hover transitions on every card.
+Four things animate, all responding to a user action rather than page load: the arc gauge
+sweep, the count-up on the cost table, the active tier in the gauge legend, and the "Cost as
+you scale" curve easing to its new shape. Do not add scroll-triggered reveals or hover
+transitions on every card.
 
 ## Deploy
 

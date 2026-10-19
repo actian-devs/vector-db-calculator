@@ -95,18 +95,21 @@ with memory rather than sitting at one million.
 
 The end-to-end tests pin what only a browser can show: that the UI is wired to the model, that
 a shared link reproduces a result exactly, and that the privacy claims hold at runtime. Two of
-them assert the page makes zero third-party requests and sets no cookies. Treat those as the
-contract behind the footer claim.
+them assert the page sets no cookies and loads nothing from an analytics or tag-manager
+domain. Treat those as the contract behind the footer claim, "No cookies and no analytics."
 
 ## Privacy and telemetry
 
-The page makes **no third-party requests**. Fonts are self-hosted, both SIL OFL 1.1, licences
-in `fonts/`. Nothing is sent to an analytics vendor, a tag manager or a CDN.
+The page sets **no cookies** and uses **no analytics vendor**: no Google Analytics, no tag
+manager, no Segment or Hotjar. The earlier "zero third-party requests" rule has been dropped,
+but nothing loads from another origin today: fonts are self-hosted, both SIL OFL 1.1, licenses
+in `fonts/`.
 
 There is optional **first-party anonymous telemetry**, which exists to give the team the
 distribution of workload shapes people evaluate as evidence for pricing. It sends the eleven
-inputs, the resulting tier and which assumptions were overridden by name. It carries no
-cookie, no persistent identifier and nothing about the person.
+inputs, the resulting tier and which model assumptions were overridden by name. It never
+sends the memory cost inputs (headroom and the price range), not even their names. It carries
+no cookie, no persistent identifier and nothing about the person.
 
 It is **off unless an endpoint is configured**, so the tool ships inert.
 

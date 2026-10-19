@@ -151,17 +151,17 @@ test.describe('export', () => {
 });
 
 test.describe('privacy claims hold at runtime', () => {
-  test('the page makes no third-party request', async ({ page }) => {
-    const external: string[] = [];
+  test('loads nothing from an analytics or tag-manager domain', async ({ page }) => {
+    // The zero-third-party-requests rule was dropped. No analytics vendor stays.
+    const TRACKERS =
+      /(google-analytics|googletagmanager|doubleclick|segment\.(io|com)|hotjar|facebook\.net|connect\.facebook|clarity\.ms|plausible\.io|mixpanel|amplitude|heap(analytics)?\.(io|com)|fullstory|posthog)/i;
+    const hits: string[] = [];
     page.on('request', (r) => {
-      const host = new URL(r.url()).host;
-      if (host && !host.startsWith('127.0.0.1') && !host.startsWith('localhost')) {
-        external.push(r.url());
-      }
+      if (TRACKERS.test(new URL(r.url()).host)) hits.push(r.url());
     });
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    expect(external).toEqual([]);
+    expect(hits).toEqual([]);
   });
 
   test('sets no cookies', async ({ page, context }) => {
@@ -179,7 +179,7 @@ test.describe('privacy claims hold at runtime', () => {
 
   test('the footer claim matches what the build actually does', async ({ page }) => {
     await page.goto('./');
-    await expect(page.locator('footer')).toContainText('No cookies and no third-party trackers');
+    await expect(page.locator('footer')).toContainText('No cookies and no analytics.');
   });
 });
 

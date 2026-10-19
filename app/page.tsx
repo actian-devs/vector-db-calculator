@@ -115,7 +115,7 @@ export default function Page() {
               Actian for Developers
             </a>
             .<br />
-            No cookies and no third-party trackers.
+            No cookies and no analytics.
           </div>
         </footer>
       </div>
