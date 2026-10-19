@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Do you need a vector database?</title>
+<meta name="description" content="Set your agent or RAG workload and read the verdict, from a flat file up to a dedicated vector database.">
+<link rel="canonical" href="https://actian-devs.github.io/vector-db-calculator/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Do you need a vector database?">
+<meta property="og:description" content="Find out in 30 seconds. Sometimes the answer is no.">
+<meta property="og:url" content="https://actian-devs.github.io/vector-db-calculator/">
+<meta property="og:image" content="https://actian-devs.github.io/vector-db-calculator/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Do you need a vector database?">
+<meta name="twitter:description" content="Find out in 30 seconds. Sometimes the answer is no.">
+<meta name="twitter:image" content="https://actian-devs.github.io/vector-db-calculator/og-image.png">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23096CF1'/><rect x='7' y='20' width='18' height='3' rx='1.5' fill='white' opacity='.45'/><rect x='7' y='14' width='12' height='3' rx='1.5' fill='white' opacity='.72'/><rect x='7' y='8' width='6' height='3' rx='1.5' fill='white'/></svg>">
+<link rel="preload" href="fonts/archivo-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/jetbrains-mono-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+/* Self-hosted so the page makes no third-party request. Both faces are SIL OFL 1.1;
+   see fonts/Archivo-LICENSE.txt and fonts/JetBrainsMono-LICENSE.txt */
+@font-face{font-family:"Archivo";src:url("fonts/archivo-latin-500-normal.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"Archivo";src:url("fonts/archivo-latin-600-normal.woff2") format("woff2");font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:"Archivo";src:url("fonts/archivo-latin-700-normal.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("fonts/jetbrains-mono-latin-500-normal.woff2") format("woff2");font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("fonts/jetbrains-mono-latin-700-normal.woff2") format("woff2");font-weight:700;font-style:normal;font-display:swap}
+
+:root{
+  --page:#FFFFFF;
+  --panel:#F6F7F9;
+  --card:#FFFFFF;
+  --ink:#15181E;
+  --ink-2:#4D5666;
+  --dim:#8A93A2;
+  --line:#E6E9ED;
+  --line-2:#F0F2F5;
+  --blue:#096CF1;
+  --blue-soft:#EAF2FE;
+  --blue-deep:#0852BA;
+  --teal:#0E9384;
+  --teal-soft:#E6F5F3;
+  --amber:#B4710B;
+  --amber-soft:#FBF2E3;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.5;font-weight:500;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-0.018em;line-height:1.18}
+p{margin:0}
+a{color:var(--blue)}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{
+  outline:2px solid var(--blue);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- rail ---------- */
+.rail{border-bottom:1px solid var(--line)}
+.rail .in{max-width:1340px;margin:0 auto;padding:0 26px;height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:11px;font-size:15px;font-weight:600}
+.mark{width:26px;height:26px;border-radius:7px;background:var(--blue);position:relative;flex:none}
+.mark i{position:absolute;left:6px;height:3px;border-radius:2px;background:#fff;display:block}
+.mark i:nth-child(1){top:7px;width:6px}
+.mark i:nth-child(2){top:12px;width:11px;opacity:.72}
+.mark i:nth-child(3){top:17px;width:14px;opacity:.45}
+.brand span{color:var(--dim);font-weight:500}
+.rail .tagline{font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+
+/* ---------- split ---------- */
+.split{max-width:1340px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start}
+.controls{padding:28px 26px 48px;min-width:0}
+.insights{background:var(--panel);border-left:1px solid var(--line);padding:28px 26px 40px;min-width:0;
+  position:sticky;top:0;max-height:100vh;overflow-y:auto;overscroll-behavior:contain}
+
+/* ---------- intro ---------- */
+.intro{margin-bottom:24px}
+.intro h1{font-size:clamp(25px,3vw,33px);max-width:19ch;font-weight:700;letter-spacing:-0.028em}
+.intro p{margin-top:9px;color:var(--ink-2);font-size:16px;max-width:54ch}
+
+/* ---------- sections ---------- */
+.grp{border-top:1px solid var(--line);padding:18px 0 4px}
+.grp:first-of-type{border-top:0;padding-top:4px}
+.grp > summary{list-style:none;display:flex;align-items:center;gap:10px;cursor:pointer;padding-bottom:4px}
+.grp > summary::-webkit-details-marker{display:none}
+.grp .ttl{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--ink-2);letter-spacing:.07em}
+.grp .ico{width:17px;height:17px;flex:none;color:var(--dim)}
+.grp .chev{margin-left:auto;width:16px;height:16px;color:var(--dim);transition:transform .22s var(--ease)}
+.grp[open] .chev{transform:rotate(180deg)}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px;padding:14px 0 20px}
+.f{min-width:0}
+.f.full{grid-column:1 / -1}
+.f > .lab{display:block;font-size:14.5px;font-weight:600;margin-bottom:2px}
+.f > .hint{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:9px;line-height:1.45}
+
+/* segmented */
+.seg{display:flex;background:var(--line-2);border-radius:9px;padding:3px;gap:3px;flex-wrap:wrap}
+.seg input{position:absolute;opacity:0;width:0;height:0}
+.seg label{flex:1 1 auto;text-align:center;padding:8px 10px;border-radius:7px;cursor:pointer;
+  font-family:var(--mono);font-size:12.5px;color:var(--ink-2);white-space:nowrap;
+  transition:background .15s var(--ease),color .15s var(--ease),box-shadow .15s var(--ease)}
+.seg label:hover{color:var(--ink)}
+.seg input:checked + label{background:var(--card);color:var(--blue);font-weight:700;
+  box-shadow:0 1px 2px rgba(21,24,30,.1),0 0 0 1px rgba(9,108,241,.22)}
+.seg input:focus-visible + label{outline:2px solid var(--blue);outline-offset:1px}
+
+/* slider */
+.sl-val{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.sl-val b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:27px;font-weight:700;letter-spacing:-0.02em}
+.sl-val span{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+input[type=range]{width:100%;accent-color:var(--blue);height:24px;background:transparent}
+.sl-ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:var(--dim);margin-top:-4px}
+.numin{width:100%;margin-top:9px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;
+  background:var(--card);color:var(--ink);font-family:var(--mono);font-size:13px}
+
+/* ---------- insights ---------- */
+.ipanel h2{font-size:19px;margin-bottom:3px}
+.ipanel .sub{font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-bottom:18px}
+
+.vcard{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:17px 18px;margin-bottom:14px;
+  border-top:3px solid var(--tc,var(--blue))}
+.vtop{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.badge{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.08em;
+  color:var(--tc,var(--blue));background:var(--tcs,var(--blue-soft));padding:4px 8px;border-radius:5px}
+.vstep{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.vcard h3{font-size:19px;color:var(--tc,var(--blue));letter-spacing:-0.022em;line-height:1.22}
+.vcard p{margin-top:8px;font-size:14.5px;color:var(--ink-2);line-height:1.5}
+
+/* gauge */
+.gcard{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px 18px;margin-bottom:14px}
+.gcard .ch{font-size:14.5px;font-weight:600;margin-bottom:2px}
+.gcard .cs{font-family:var(--mono);font-size:11px;color:var(--dim);margin-bottom:6px}
+.garea{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.gwrap{position:relative;width:186px;height:112px;flex:none}
+.gwrap svg{display:block;width:186px;height:112px;overflow:visible}
+.arc-bg{fill:none;stroke:var(--line);stroke-width:16;stroke-linecap:round}
+.arc-fg{fill:none;stroke:var(--tc,var(--blue));stroke-width:16;stroke-linecap:round;
+  transition:stroke-dashoffset .62s var(--ease), stroke .3s var(--ease)}
+.gcentre{position:absolute;left:28px;right:28px;bottom:10px;text-align:center}
+.gcentre b{display:block;font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:25px;font-weight:700;letter-spacing:-0.03em;line-height:1.05}
+.gcentre span{display:block;font-family:var(--mono);font-size:9.5px;color:var(--dim);margin-top:4px;line-height:1.3}
+.glegend{display:grid;gap:7px;flex:1 1 150px;min-width:142px}
+.glegend .row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);
+  transition:color .2s var(--ease)}
+.glegend .row i{width:8px;height:8px;border-radius:50%;background:var(--dot,var(--dim));flex:none;opacity:.32;
+  transition:opacity .2s var(--ease),transform .2s var(--ease)}
+.glegend .row[data-t="0"],.glegend .row[data-t="1"]{--dot:var(--teal)}
+.glegend .row[data-t="2"]{--dot:var(--amber)}
+.glegend .row[data-t="3"]{--dot:var(--blue)}
+.glegend .row.on{color:var(--ink);font-weight:600}
+.glegend .row.on i{opacity:1;transform:scale(1.3)}
+.glegend .row em{font-style:normal;font-family:var(--mono);font-size:11px;margin-left:auto;color:var(--dim)}
+
+/* table */
+.tcard{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:4px 18px 8px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse}
+thead th{font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);
+  text-align:right;padding:13px 0 9px;letter-spacing:.03em}
+thead th:first-child{text-align:left}
+tbody td{border-top:1px solid var(--line-2);padding:12px 0;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;font-size:14px;text-align:right;white-space:nowrap}
+tbody td:first-child{text-align:left;font-family:var(--sans);font-size:14px;color:var(--ink-2);
+  font-weight:500;white-space:normal;padding-right:12px}
+tbody td em{font-style:normal;font-size:.78em;color:var(--dim);margin-left:2px}
+td.grow{color:var(--tc,var(--blue));font-weight:700}
+
+/* why */
+.wcard{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:15px 18px 17px;margin-bottom:14px}
+.wh{font-family:var(--mono);font-size:10.5px;color:var(--dim);letter-spacing:.05em;margin-bottom:10px}
+.because{list-style:none;margin:0 0 15px;padding:0;display:grid;gap:7px}
+.because li{position:relative;padding-left:16px;font-size:14.5px;line-height:1.45;color:var(--ink)}
+.because li::before{content:"";position:absolute;left:0;top:.56em;width:6px;height:6px;border-radius:2px;background:var(--tc,var(--blue))}
+#change{font-size:14px;color:var(--ink-2);line-height:1.5}
+
+/* reads + cta */
+.reads{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.reads a{font-size:14.5px;color:var(--ink);text-decoration:none;display:flex;gap:9px;line-height:1.4;align-items:baseline}
+.reads a::before{content:"";flex:none;width:5px;height:5px;border-radius:50%;background:var(--line);
+  transform:translateY(-2px);transition:background .15s}
+.reads a:hover{color:var(--blue)}
+.reads a:hover::before{background:var(--blue)}
+.acts{display:grid;gap:8px;margin-top:15px}
+.btn{display:block;text-align:center;padding:12px 16px;border-radius:9px;font-size:14.5px;font-weight:600;text-decoration:none}
+.btn-primary{background:var(--blue);color:#fff;transition:background .15s}
+.btn-primary:hover{background:var(--blue-deep)}
+.btn-ghost{border:1px solid var(--line);color:var(--ink);background:var(--card);transition:border-color .15s,color .15s}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue)}
+.fine{font-family:var(--mono);font-size:10.5px;color:var(--dim);line-height:1.55}
+.share{display:flex;align-items:center;gap:9px;margin-top:12px}
+.share button{font:inherit;font-family:var(--mono);font-size:11.5px;padding:9px 12px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink-2);border-radius:8px;cursor:pointer;transition:border-color .15s,color .15s}
+.share button:hover{border-color:var(--blue);color:var(--blue)}
+.share .ok{font-family:var(--mono);font-size:11px;color:var(--teal);opacity:0;transition:opacity .18s}
+.share .ok.on{opacity:1}
+
+/* ---------- lower ---------- */
+.lower{border-top:1px solid var(--line);background:var(--panel)}
+.lower .in{max-width:1340px;margin:0 auto;padding:40px 26px}
+.lower h2{font-size:20px;margin-bottom:13px}
+.prose{max-width:66ch;color:var(--ink-2);font-size:15.5px;line-height:1.65;display:grid;gap:10px}
+.prose b{color:var(--ink);font-weight:700}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:24px 28px}
+.group h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--blue);margin-bottom:9px;letter-spacing:.03em}
+.group ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.group a{font-size:14px;color:var(--ink-2);text-decoration:none;line-height:1.4}
+.group a:hover{color:var(--ink)}
+footer{border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--dim);line-height:1.7}
+footer .in{max-width:1340px;margin:0 auto;padding:20px 26px 36px}
+footer a{color:var(--dim)}
+
+/* slim live verdict, small screens only */
+.minibar{display:none}
+@media (max-width:1000px){
+  .split{grid-template-columns:1fr}
+  .insights{position:static;max-height:none;border-left:0;border-top:1px solid var(--line);overflow:visible}
+  .controls{padding-bottom:28px}
+  .minibar{display:block;position:sticky;top:0;z-index:40;background:var(--card);
+    border-bottom:1px solid var(--line);box-shadow:0 2px 10px -6px rgba(21,24,30,.3)}
+  .minibar a{display:flex;align-items:center;gap:10px;max-width:1340px;margin:0 auto;
+    padding:10px 26px;text-decoration:none;color:inherit}
+  .minibar .badge{flex:none}
+  .minibar b{font-size:14.5px;font-weight:600;color:var(--tc,var(--blue));line-height:1.25;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .minibar .go{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--dim);flex:none}
+}
+@media (max-width:560px){
+  .fields{grid-template-columns:1fr}
+  .rail .tagline{display:none}
+  .seg label{font-size:12px;padding:8px 7px}
+  .garea{justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:26px;top:12px;background:var(--card);padding:9px 13px;border-radius:8px;z-index:99;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<a class="skip" href="#controls">Skip to the controls</a>
+
+<div class="rail">
+  <div class="in">
+    <span class="brand">
+      <span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      Actian VectorAI DB <span>&nbsp;/ sizing tool</span>
+    </span>
+    <span class="tagline">no data leaves your browser</span>
+  </div>
+</div>
+
+<div class="minibar" id="minibar">
+  <a href="#verdict">
+    <span class="badge" id="mBadge">TIER 2</span>
+    <b id="mVerdict">pgvector will carry you for now</b>
+    <span class="go">see why</span>
+  </a>
+</div>
+
+<div class="split">
+
+  <section class="controls" id="controls">
+    <div class="intro">
+      <h1>Do you need a vector database?</h1>
+      <p>Describe your agent or RAG workload. The verdict updates as you go, and sometimes it is no.</p>
+    </div>
+
+    <form id="deck" autocomplete="off">
+
+      <details class="grp" open>
+        <summary>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
+          <span class="ttl">WORKLOAD SIZE</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </summary>
+        <div class="fields">
+          <div class="f full">
+            <span class="lab" id="lab-items">Items to remember or search</span>
+            <span class="hint">chunks, memories, documents, rows</span>
+            <div class="sl-val"><b class="mono" id="itemsOut">100,000</b><span>today</span></div>
+            <input type="range" id="items" min="0" max="5" step="1" value="2" aria-labelledby="lab-items" aria-describedby="itemsOut">
+            <div class="sl-ticks" aria-hidden="true"><span>1K</span><span>10K</span><span>100K</span><span>1M</span><span>10M</span><span>100M</span></div>
+          </div>
+          <div class="f">
+            <span class="lab">Growth in 12 months</span>
+            <span class="hint">multiplier on the item count</span>
+            <div class="seg" role="radiogroup" aria-label="Growth in 12 months">
+              <input type="radio" name="growth" id="g1" value="1" checked><label for="g1">flat</label>
+              <input type="radio" name="growth" id="g2" value="2"><label for="g2">2x</label>
+              <input type="radio" name="growth" id="g10" value="10"><label for="g10">10x</label>
+              <input type="radio" name="growth" id="g100" value="100"><label for="g100">100x</label>
+            </div>
+          </div>
+          <div class="f">
+            <span class="lab">Embedding dimensions</span>
+            <span class="hint">text-embedding-3-small 1536 / MiniLM-L6 384</span>
+            <div class="seg" role="radiogroup" aria-label="Embedding dimensions">
+              <input type="radio" name="dims" id="d384" value="384"><label for="d384">384</label>
+              <input type="radio" name="dims" id="d768" value="768"><label for="d768">768</label>
+              <input type="radio" name="dims" id="d1536" value="1536" checked><label for="d1536">1536</label>
+              <input type="radio" name="dims" id="d3072" value="3072"><label for="d3072">3072</label>
+              <input type="radio" name="dims" id="dcustom" value="custom"><label for="dcustom">custom</label>
+            </div>
+            <input class="numin mono" type="number" id="dimCustom" min="2" max="16384" step="1" value="2048" hidden aria-label="Custom embedding dimensions">
+          </div>
+        </div>
+      </details>
+
+      <details class="grp" open>
+        <summary>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          <span class="ttl">PERFORMANCE TARGET</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </summary>
+        <div class="fields">
+          <div class="f">
+            <span class="lab">Latency per query</span>
+            <span class="hint">at the retrieval step</span>
+            <div class="seg" role="radiogroup" aria-label="Latency per query">
+              <input type="radio" name="lat" id="l10" value="10"><label for="l10">&lt;10ms</label>
+              <input type="radio" name="lat" id="l50" value="50" checked><label for="l50">&lt;50ms</label>
+              <input type="radio" name="lat" id="l200" value="200"><label for="l200">&lt;200ms</label>
+              <input type="radio" name="lat" id="l0" value="0"><label for="l0">any</label>
+            </div>
+          </div>
+          <div class="f">
+            <span class="lab">Queries per second at peak</span>
+            <span class="hint">concurrent retrieval load</span>
+            <div class="seg" role="radiogroup" aria-label="Queries per second at peak">
+              <input type="radio" name="qps" id="q1" value="1" checked><label for="q1">&lt;1</label>
+              <input type="radio" name="qps" id="q10" value="10"><label for="q10">1-10</label>
+              <input type="radio" name="qps" id="q100" value="100"><label for="q100">10-100</label>
+              <input type="radio" name="qps" id="q101" value="101"><label for="q101">100+</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp" open>
+        <summary>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+          <span class="ttl">QUERY SHAPE</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </summary>
+        <div class="fields">
+          <div class="f">
+            <span class="lab">Matching you need</span>
+            <span class="hint">exact terms are IDs, names, code symbols</span>
+            <div class="seg" role="radiogroup" aria-label="Matching you need">
+              <input type="radio" name="match" id="m1" value="semantic" checked><label for="m1">meaning</label>
+              <input type="radio" name="match" id="m2" value="exact"><label for="m2">exact</label>
+              <input type="radio" name="match" id="m3" value="hybrid"><label for="m3">both</label>
+            </div>
+          </div>
+          <div class="f">
+            <span class="lab">Metadata filtering</span>
+            <span class="hint">by user, tenant, date, permissions</span>
+            <div class="seg" role="radiogroup" aria-label="Metadata filtering">
+              <input type="radio" name="filter" id="f0" value="no" checked><label for="f0">never</label>
+              <input type="radio" name="filter" id="f1" value="sometimes"><label for="f1">sometimes</label>
+              <input type="radio" name="filter" id="f2" value="always"><label for="f2">always</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp" open>
+        <summary>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
+          <span class="ttl">OPERATIONS</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </summary>
+        <div class="fields">
+          <div class="f">
+            <span class="lab">How often data changes</span>
+            <span class="hint">writes after the initial load</span>
+            <div class="seg" role="radiogroup" aria-label="How often data changes">
+              <input type="radio" name="change" id="c1" value="append" checked><label for="c1">append</label>
+              <input type="radio" name="change" id="c2" value="daily"><label for="c2">daily</label>
+              <input type="radio" name="change" id="c3" value="constant"><label for="c3">constant</label>
+            </div>
+          </div>
+          <div class="f">
+            <span class="lab">Tenancy</span>
+            <span class="hint">who shares the store</span>
+            <div class="seg" role="radiogroup" aria-label="Tenancy">
+              <input type="radio" name="tenancy" id="t1" value="single" checked><label for="t1">one workspace</label>
+              <input type="radio" name="tenancy" id="t2" value="many"><label for="t2">many tenants</label>
+            </div>
+          </div>
+          <div class="f">
+            <span class="lab">Already running Postgres</span>
+            <span class="hint">decides what pgvector costs you</span>
+            <div class="seg" role="radiogroup" aria-label="Already running Postgres">
+              <input type="radio" name="pg" id="p1" value="yes"><label for="p1">yes</label>
+              <input type="radio" name="pg" id="p0" value="no" checked><label for="p0">no</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp" open>
+        <summary>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg>
+          <span class="ttl">DEPLOYMENT</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+        </summary>
+        <div class="fields">
+          <div class="f full">
+            <span class="lab">Where the data must live</span>
+            <span class="hint">the constraint that overrides everything else</span>
+            <div class="seg" role="radiogroup" aria-label="Where the data must live">
+              <input type="radio" name="res" id="r1" value="cloud" checked><label for="r1">any cloud</label>
+              <input type="radio" name="res" id="r2" value="onprem"><label for="r2">own servers</label>
+              <input type="radio" name="res" id="r3" value="airgapped"><label for="r3">air-gapped</label>
+              <input type="radio" name="res" id="r4" value="edge"><label for="r4">edge</label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+    </form>
+  </section>
+
+  <aside class="insights">
+    <div class="ipanel" id="ipanel" aria-live="polite">
+      <h2>Your verdict</h2>
+      <p class="sub">updates as you change anything</p>
+
+      <div class="vcard">
+        <div class="vtop">
+          <span class="badge" id="badge">TIER 2</span>
+          <span class="vstep" id="vstep">3 of 4</span>
+        </div>
+        <h3 id="verdict">pgvector will carry you for now</h3>
+        <p id="lede"></p>
+      </div>
+
+      <div class="gcard">
+        <div class="ch">Where your workload sits</div>
+        <div class="cs">items in 12 months, log scale</div>
+        <div class="garea">
+          <div class="gwrap">
+            <svg viewBox="0 0 186 112" role="img" aria-labelledby="gaugeTitle">
+              <title id="gaugeTitle">Workload scale position</title>
+              <path class="arc-bg" d="M 16 100 A 77 77 0 0 1 170 100"/>
+              <path class="arc-fg" id="arcFg" d="M 16 100 A 77 77 0 0 1 170 100"/>
+            </svg>
+            <div class="gcentre">
+              <b class="mono" id="gaugeVal">100,000</b>
+              <span id="gaugeSub">items</span>
+            </div>
+          </div>
+          <div class="glegend" id="legend">
+            <div class="row" data-t="0"><i></i>Flat file<em>to 1M</em></div>
+            <div class="row" data-t="1"><i></i>Keyword index<em>any size</em></div>
+            <div class="row" data-t="2"><i></i>pgvector<em>to 1M</em></div>
+            <div class="row" data-t="3"><i></i>Dedicated store<em>1M+</em></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tcard">
+        <table>
+          <thead>
+            <tr><th scope="col">What it costs you</th><th scope="col">Today</th><th scope="col">In 12 months</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Vector memory, float32</td><td id="memNow"></td><td class="grow" id="memNext"></td></tr>
+            <tr><td>Same vectors at int8</td><td id="i8Now"></td><td class="grow" id="i8Next"></td></tr>
+            <tr><td>Comparisons per query</td><td id="opNow"></td><td class="grow" id="opNext"></td></tr>
+            <tr><td>Brute-force scan</td><td id="msNow"></td><td class="grow" id="msNext"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="wcard">
+        <div class="wh">WHY YOU LANDED HERE</div>
+        <ul class="because" id="because"></ul>
+        <div class="wh">WHAT WOULD CHANGE THIS</div>
+        <p id="change"></p>
+      </div>
+
+      <div class="wcard">
+        <div class="wh">WORTH READING NEXT</div>
+        <ul class="reads" id="reads"></ul>
+        <div class="acts" id="cta"></div>
+        <div class="share">
+          <button type="button" id="shareBtn">copy link to this result</button>
+          <span class="ok" id="shareOk">copied</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="lower">
+  <section class="in">
+    <h2>How this tool decides</h2>
+    <div class="prose">
+      <p><b>The numbers are exact arithmetic.</b> Vector memory is items multiplied by dimensions multiplied by four bytes for float32. Comparisons per query is items multiplied by dimensions, because a brute-force search compares your query against every stored item. Those figures are true for the inputs you set, with no measurement behind them and none needed.</p>
+      <p><b>The tier break points are a rough guide.</b> They come from that same arithmetic plus the widely observed behavior of brute-force search and HNSW indexes. They are estimates for sizing a decision, not a benchmark, and your hardware, dimensions and query mix will move them. Treat a result near a boundary as a prompt to test on your own data.</p>
+      <p><b>The scan figure is an order of magnitude</b>, assuming 1 to 10 GFLOP/s of effective single-threaded throughput. It tells you whether a flat scan is in the right ballpark, and nothing finer than that.</p>
+      <p>This page publishes no performance table and no vendor comparison figures. Where the result points at a dedicated vector database, it does so because of the shape of your workload, and the product pages carry the proof from there.</p>
+    </div>
+  </section>
+
+  <section class="in" style="border-top:1px solid var(--line)">
+    <h2>Keep reading</h2>
+    <div class="groups">
+      <div class="group">
+        <h3>when you don't need one</h3>
+        <ul>
+          <li><a href="https://www.actian.com/blog/developer/comparing-embedded-vector-databases/" data-out>Comparing embedded vector databases</a></li>
+          <li><a href="https://www.actian.com/blog/developer/5-best-python-vector-database-libraries/" data-out>5 best Python vector database libraries</a></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h3>where simple setups break</h3>
+        <ul>
+          <li><a href="https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-embedded-pgvector-alternative/" data-out>Embedded pgvector alternative</a></li>
+          <li><a href="https://www.actian.com/blog/developer/state-of-vector-databases-q2-2026/" data-out>State of Vector Databases Q2 2026</a></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h3>agent memory patterns</h3>
+        <ul>
+          <li><a href="https://dev.to/actiandev/what-you-need-to-know-about-ai-agent-memory-architecture-49ek" data-out>AI agent memory architecture</a></li>
+          <li><a href="https://www.actian.com/blog/developer/add-persistent-memory-to-a-pydantic-ai-agent-with-vectorai-db/" data-out>Persistent memory for a Pydantic AI agent</a></li>
+          <li><a href="https://www.actian.com/blog/developer/replace-crewai-memory-in-production-with-vectorai-db/" data-out>Replace CrewAI memory in production</a></li>
+          <li><a href="https://www.actian.com/blog/developer/build-a-self-improving-gpt-6-astra-coding-agent-with-codebase-memory/" data-out>Self-improving agent with codebase memory</a></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h3>picking a database</h3>
+        <ul>
+          <li><a href="https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-on-premises-pinecone-alternative/" data-out>On-premises Pinecone alternative</a></li>
+          <li><a href="https://www.actian.com/blog/developer/is-vectorai-db-the-best-air-gapped-qdrant-alternative/" data-out>Air-gapped Qdrant alternative</a></li>
+          <li><a href="https://www.actian.com/blog/developer/weviate-alternatives-is-vectorai-db-the-best-choice-for-edge-devices/" data-out>Weaviate alternative for edge</a></li>
+          <li><a href="https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-lightweight-milvus-alternative/" data-out>Lightweight Milvus alternative</a></li>
+          <li><a href="https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-production-chromadb-alternative/" data-out>Production ChromaDB alternative</a></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h3>get started</h3>
+        <ul>
+          <li><a href="https://www.actian.com/blog/developer/how-to-set-up-langchain-with-vectorai-db-for-on-prem-rag/" data-out>LangChain on-prem RAG</a></li>
+          <li><a href="https://www.actian.com/blog/developer/add-vector-search-to-your-fastapi-app-with-vectorai-db/" data-out>Vector search in FastAPI</a></li>
+          <li><a href="https://www.actian.com/blog/developer/how-to-migrate-from-qdrant-to-actian-vectorai-db/" data-out>Migrate from Qdrant</a></li>
+          <li><a href="https://www.actian.com/databases/vectorai-db/community-edition/" data-out>Community Edition</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="in">
+      Maintained by <a href="https://github.com/actian-devs" data-out>Actian for Developers</a>.<br>
+      No cookies and no analytics. Your answers stay in the URL and never leave your browser.
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var CAMPAIGN = (function(){
+    try{
+      var c = new URLSearchParams(location.search).get("utm_campaign");
+      return (c && /^[\w.-]{1,64}$/.test(c)) ? c : "organic";
+    }catch(e){ return "organic"; }
+  })();
+
+  function withUtm(href){
+    try{
+      var u = new URL(href, location.href);
+      u.searchParams.set("utm_source","vector-db-calculator");
+      u.searchParams.set("utm_medium","hub");
+      u.searchParams.set("utm_campaign",CAMPAIGN);
+      return u.toString();
+    }catch(e){ return href; }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("a[data-out]"), function(a){
+    a.href = withUtm(a.getAttribute("href")); a.rel = "noopener";
+  });
+
+  var L = {
+    embedded:["Comparing embedded vector databases","https://www.actian.com/blog/developer/comparing-embedded-vector-databases/"],
+    pyLibs:["5 best Python vector database libraries","https://www.actian.com/blog/developer/5-best-python-vector-database-libraries/"],
+    pgAlt:["Is VectorAI DB the best embedded pgvector alternative?","https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-embedded-pgvector-alternative/"],
+    state:["State of Vector Databases Q2 2026","https://www.actian.com/blog/developer/state-of-vector-databases-q2-2026/"],
+    memArch:["What you need to know about AI agent memory architecture","https://dev.to/actiandev/what-you-need-to-know-about-ai-agent-memory-architecture-49ek"],
+    pydantic:["Add persistent memory to a Pydantic AI agent","https://www.actian.com/blog/developer/add-persistent-memory-to-a-pydantic-ai-agent-with-vectorai-db/"],
+    crewai:["Replace CrewAI memory in production","https://www.actian.com/blog/developer/replace-crewai-memory-in-production-with-vectorai-db/"],
+    selfImp:["Build a self-improving coding agent with codebase memory","https://www.actian.com/blog/developer/build-a-self-improving-gpt-6-astra-coding-agent-with-codebase-memory/"],
+    pinecone:["On-premises Pinecone alternative","https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-on-premises-pinecone-alternative/"],
+    qdrantAir:["Air-gapped Qdrant alternative","https://www.actian.com/blog/developer/is-vectorai-db-the-best-air-gapped-qdrant-alternative/"],
+    weaviateEdge:["Weaviate alternative for edge devices","https://www.actian.com/blog/developer/weviate-alternatives-is-vectorai-db-the-best-choice-for-edge-devices/"],
+    milvus:["Lightweight Milvus alternative","https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-lightweight-milvus-alternative/"],
+    chroma:["Production ChromaDB alternative","https://www.actian.com/blog/developer/is-actian-vectorai-db-the-best-production-chromadb-alternative/"],
+    langchain:["LangChain with VectorAI DB for on-prem RAG","https://www.actian.com/blog/developer/how-to-set-up-langchain-with-vectorai-db-for-on-prem-rag/"],
+    fastapi:["Add vector search to your FastAPI app","https://www.actian.com/blog/developer/add-vector-search-to-your-fastapi-app-with-vectorai-db/"],
+    qdrantMig:["Migrate from Qdrant to VectorAI DB","https://www.actian.com/blog/developer/how-to-migrate-from-qdrant-to-actian-vectorai-db/"],
+    quant:["Which quantization level for edge LLM deployment?","https://www.actian.com/blog/developer/which-quantization-level-should-you-use-for-edge-llm-deployment/"],
+    pi5:["Best LLM for Raspberry Pi 5","https://www.actian.com/blog/developer/phi-4-mini-vs-gemma-4-vs-qwen3-best-llm-for-raspberry-pi-5/"],
+    hipaa:["Build a HIPAA-compliant AI ecosystem without the cloud","https://www.actian.com/blog/developer/how-to-build-a-hipaa-compliant-ai-ecosystem-without-the-cloud/"],
+    fintech:["Build a compliance document search system for fintech","https://www.actian.com/blog/developer/how-to-build-a-compliance-document-search-system-for-fintech/"],
+    community:["VectorAI DB Community Edition","https://www.actian.com/databases/vectorai-db/community-edition/"],
+    product:["VectorAI DB","https://www.actian.com/databases/vectorai-db/"],
+    demo:["Book a demo","https://www.actian.com/databases/vectorai-db/demo/"]
+  };
+
+  // rule-of-thumb guidance, see "How this tool decides"
+  var CFG = {
+    flatUnder10ms: 1e4,
+    flatUnder50ms: 1e5,
+    flatUnder200ms: 1e6,
+    pgvectorGuide: 1e6,
+    heavyFilterStrainsAbove: 1e5
+  };
+
+  var ITEM_STEPS = [1e3,1e4,1e5,1e6,1e7,1e8];
+  var el = function(id){ return document.getElementById(id); };
+
+  function fmtInt(n){
+    if(n >= 1e9) return (n/1e9).toFixed(n/1e9 < 10 ? 1 : 0).replace(/\.0$/,"") + "B";
+    if(n >= 1e6) return (n/1e6).toFixed(n/1e6 < 10 ? 1 : 0).replace(/\.0$/,"") + "M";
+    if(n >= 1e3) return (n/1e3).toFixed(n/1e3 < 10 ? 1 : 0).replace(/\.0$/,"") + "K";
+    return String(Math.round(n));
+  }
+  function fmtFull(n){ return Math.round(n).toLocaleString("en-US"); }
+  function fmtBytes(b){
+    var u=["B","KB","MB","GB","TB","PB"], i=0;
+    while(b >= 1024 && i < u.length-1){ b/=1024; i++; }
+    return (b < 10 && i > 0 ? b.toFixed(1) : String(Math.round(b))) + "<em>" + u[i] + "</em>";
+  }
+  function fmtScan(macs){
+    var flops = 2*macs, hi = flops/1e9*1000, lo = flops/1e10*1000;
+    var unit = hi >= 1000 ? "s" : "ms", k = hi >= 1000 ? 1000 : 1;
+    function n(x){ x/=k; return x < 1 ? x.toFixed(2).replace(/0$/,"") : x < 10 ? x.toFixed(1) : String(Math.round(x)); }
+    return n(lo) + "-" + n(hi) + "<em>" + unit + "</em>";
+  }
+
+  function read(){
+    var dimSel = document.querySelector('input[name=dims]:checked').value;
+    var dims = dimSel === "custom"
+      ? Math.max(2, Math.min(16384, parseInt(el("dimCustom").value,10) || 1536))
+      : parseInt(dimSel,10);
+    return {
+      idx: parseInt(el("items").value,10),
+      items: ITEM_STEPS[parseInt(el("items").value,10)],
+      growth: parseInt(document.querySelector('input[name=growth]:checked').value,10),
+      dims: dims, dimSel: dimSel,
+      lat: parseInt(document.querySelector('input[name=lat]:checked').value,10),
+      qps: parseInt(document.querySelector('input[name=qps]:checked').value,10),
+      filter: document.querySelector('input[name=filter]:checked').value,
+      match: document.querySelector('input[name=match]:checked').value,
+      change: document.querySelector('input[name=change]:checked').value,
+      tenancy: document.querySelector('input[name=tenancy]:checked').value,
+      res: document.querySelector('input[name=res]:checked').value,
+      pg: document.querySelector('input[name=pg]:checked').value
+    };
+  }
+
+  function flatLimit(lat){
+    if(lat === 10) return CFG.flatUnder10ms;
+    if(lat === 50) return CFG.flatUnder50ms;
+    return CFG.flatUnder200ms;
+  }
+
+  function decide(s){
+    var items12 = s.items * s.growth;
+    var limit = flatLimit(s.lat);
+    var busy = s.qps >= 100;
+    var why = [];
+
+    if(s.match === "exact"){
+      why.push("you match exact terms rather than meaning, which is what a keyword index is for");
+      if(items12 > CFG.pgvectorGuide) why.push("full-text indexes stay fast at " + fmtInt(items12) + " items");
+      return {tier:1, why:why, items12:items12, limit:limit};
+    }
+
+    if(s.res === "airgapped") why.push("your data has to stay inside an air-gapped network");
+    if(s.res === "edge") why.push("this runs on edge or on-device hardware");
+    if(s.match === "hybrid") why.push("you need keyword and semantic search together");
+    if(s.tenancy === "many") why.push("many tenants share one store, so you need isolation per tenant");
+    if(s.change === "constant") why.push("the data changes constantly, with updates and deletes");
+    if(s.filter === "always" && items12 > CFG.heavyFilterStrainsAbove)
+      why.push("you always filter by metadata, at " + fmtInt(items12) + " items");
+    if(s.filter === "sometimes" && items12 > CFG.pgvectorGuide)
+      why.push("you filter by metadata past " + fmtInt(CFG.pgvectorGuide) + " items");
+    if(items12 > CFG.pgvectorGuide)
+      why.push(fmtInt(items12) + " items within 12 months is past the practical single-Postgres guide");
+    if(items12 > limit && s.lat !== 0 && busy)
+      why.push("a " + s.lat + " ms target at " + fmtInt(items12) + " items with real concurrency needs an index");
+
+    if(why.length) return {tier:3, why:why, items12:items12, limit:limit};
+
+    var quiet = s.qps <= 10;
+    if(items12 <= limit && quiet && s.filter === "no" && s.tenancy === "single"){
+      why.push(fmtInt(items12) + " items fits a flat in-memory scan at your " +
+        (s.lat === 0 ? "relaxed latency" : "under " + s.lat + " ms") + " target");
+      why.push("no metadata filtering and a single workspace, so there is nothing to index around");
+      if(s.qps <= 1) why.push("under one query per second, so concurrency is not a factor");
+      return {tier:0, why:why, items12:items12, limit:limit};
+    }
+
+    why.push(fmtInt(items12) + " items is within reach of an HNSW index on Postgres");
+    if(items12 > limit) why.push("it is past what a flat scan holds at your latency target, so you want an index");
+    if(s.filter !== "no") why.push("your filtering is light enough that the planner should cope at this size");
+    if(s.pg === "yes") why.push("you already run Postgres, so pgvector adds no new system to operate");
+    return {tier:2, why:why, items12:items12, limit:limit};
+  }
+
+  var TIERS = {
+    0:{badge:"TIER 0", c:"var(--teal)", cs:"var(--teal-soft)", head:"You don't need a vector database yet",
+       lede:"A flat file and an in-memory cosine scan covers this. Add the dependency when the numbers move, not before."},
+    1:{badge:"TIER 1", c:"var(--teal)", cs:"var(--teal-soft)", head:"You need keyword search, not vectors",
+       lede:"BM25 through SQLite FTS or Postgres full-text answers exact-term queries faster and more precisely than embeddings will."},
+    2:{badge:"TIER 2", c:"var(--amber)", cs:"var(--amber-soft)", head:"pgvector will carry you for now",
+       lede:"An HNSW index on Postgres handles this shape of workload without a second system to run."},
+    3:{badge:"TIER 3", c:"var(--blue)", cs:"var(--blue-soft)", head:"You need a dedicated vector database",
+       lede:"This is where a dedicated store earns its place, because of how your workload filters, scales or has to be deployed."}
+  };
+
+  function readsFor(s, tier){
+    var out = [];
+    if(tier === 0) out = [L.embedded, L.pyLibs, L.memArch, L.state];
+    else if(tier === 1) out = [L.embedded, L.memArch, L.state];
+    else if(tier === 2) out = [L.pgAlt, L.state, L.langchain, L.memArch, L.embedded];
+    else {
+      out = [L.memArch];
+      if(s.res === "edge") out.push(L.weaviateEdge, L.quant, L.pi5);
+      if(s.res === "airgapped") out.push(L.qdrantAir, L.hipaa);
+      if(s.res === "onprem") out.push(L.pinecone, L.fintech);
+      if(s.tenancy === "many" || s.change === "constant") out.push(L.crewai);
+      if(s.filter !== "no") out.push(L.chroma);
+      out.push(L.pydantic, L.langchain, L.qdrantMig, L.milvus, L.selfImp, L.fastapi);
+    }
+    var seen = {}, uniq = [];
+    out.forEach(function(r){ if(r && !seen[r[1]]){ seen[r[1]] = 1; uniq.push(r); } });
+    return uniq.slice(0,5);
+  }
+
+  function changeText(s, d){
+    if(d.tier === 3){
+      var soft = [];
+      if(s.filter === "always") soft.push("drop the always-on metadata filter");
+      if(s.tenancy === "many") soft.push("give each tenant its own store");
+      if(s.match === "hybrid") soft.push("stop needing keyword and semantic together");
+      if(s.change === "constant") soft.push("move to batched daily updates");
+      if(s.res === "airgapped" || s.res === "edge") soft.push("relax the deployment constraint");
+      if(d.items12 > CFG.pgvectorGuide) soft.push("stay under " + fmtInt(CFG.pgvectorGuide) + " items");
+      return soft.length
+        ? "If you " + soft.slice(0,2).join(", or ") + ", a simpler setup comes back into range."
+        : "Revisit if the workload simplifies, in filtering, tenancy or deployment.";
+    }
+    if(d.tier === 2) return "If you pass " + fmtInt(CFG.pgvectorGuide) + " items, start filtering on every query, or add tenants to the same store, revisit this.";
+    if(d.tier === 1) return "If you start needing “find things like this” rather than exact terms, run this again with meaning selected.";
+    return "If you pass " + fmtInt(d.limit) + " items at this latency target, add filtering, or go past ten queries per second, revisit this.";
+  }
+
+  function ctaFor(tier){
+    var box = el("cta"); box.innerHTML = "";
+    function a(cls,label,href){
+      var n=document.createElement("a"); n.className="btn "+cls; n.textContent=label;
+      n.href=withUtm(href); n.rel="noopener"; box.appendChild(n);
+    }
+    function fine(t){ var n=document.createElement("p"); n.className="fine"; n.textContent=t; box.appendChild(n); }
+    if(tier === 3){
+      a("btn-primary","See what VectorAI DB does",L.product[1]);
+      a("btn-ghost","Book a demo",L.demo[1]);
+      a("btn-ghost","Try Community Edition free",L.community[1]);
+      fine("Community Edition holds up to 5,000 vectors without a licence, enough to try it on a sample of your data.");
+    } else {
+      a("btn-ghost","Read the agent memory architecture guide",L.memArch[1]);
+      fine("Bookmark this and run it again when your numbers move.");
+    }
+  }
+
+  /* ---- animation helpers ---- */
+  var ARC_LEN = 0;
+  (function(){ var p = el("arcFg"); ARC_LEN = p.getTotalLength();
+    p.style.strokeDasharray = ARC_LEN; p.style.strokeDashoffset = ARC_LEN; })();
+
+  var counters = {};
+  function countTo(id, to, fmt){
+    var node = el(id), from = counters[id];
+    if(from === undefined || REDUCED || from === to){
+      counters[id] = to; node.innerHTML = fmt(to); return;
+    }
+    counters[id] = to;
+    var t0 = null, dur = 420;
+    function step(ts){
+      if(t0 === null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dur);
+      var e = 1 - Math.pow(1 - k, 3);
+      node.innerHTML = fmt(from + (to - from) * e);
+      if(k < 1 && counters[id] === to) window.requestAnimationFrame(step);
+      else if(counters[id] === to) node.innerHTML = fmt(to);
+    }
+    window.requestAnimationFrame(step);
+  }
+
+  function logPos(v){
+    return Math.max(0, Math.min(1, (Math.log(v)/Math.LN10 - 3) / 5));
+  }
+
+  function render(){
+    var s = read();
+    el("dimCustom").hidden = (s.dimSel !== "custom");
+    var d = decide(s), T = TIERS[d.tier];
+    var items12 = d.items12, itemsNow = s.items;
+
+    el("itemsOut").textContent = fmtFull(itemsNow);
+
+    var panel = el("ipanel");
+    panel.style.setProperty("--tc", T.c);
+    panel.style.setProperty("--tcs", T.cs);
+    el("badge").textContent = T.badge;
+    el("vstep").textContent = (d.tier + 1) + " of 4";
+    el("verdict").textContent = T.head;
+    el("lede").textContent = T.lede;
+
+    var mb = el("minibar");
+    mb.style.setProperty("--tc", T.c);
+    mb.style.setProperty("--tcs", T.cs);
+    el("mBadge").textContent = T.badge;
+    el("mVerdict").textContent = T.head;
+
+    /* gauge */
+    el("arcFg").style.strokeDashoffset = ARC_LEN * (1 - logPos(items12));
+    countTo("gaugeVal", items12, function(v){ return fmtInt(v); });
+    el("gaugeSub").textContent = s.growth > 1 ? "items, " + s.growth + "x growth" : "items";
+    Array.prototype.forEach.call(el("legend").children, function(row){
+      row.classList.toggle("on", parseInt(row.getAttribute("data-t"),10) === d.tier);
+    });
+
+    /* table: today vs in 12 months */
+    countTo("memNow",  itemsNow * s.dims * 4, fmtBytes);
+    countTo("memNext", items12  * s.dims * 4, fmtBytes);
+    countTo("i8Now",   itemsNow * s.dims,     fmtBytes);
+    countTo("i8Next",  items12  * s.dims,     fmtBytes);
+    countTo("opNow",   itemsNow * s.dims, function(v){ return fmtInt(v); });
+    countTo("opNext",  items12  * s.dims, function(v){ return fmtInt(v); });
+    countTo("msNow",   itemsNow * s.dims, fmtScan);
+    countTo("msNext",  items12  * s.dims, fmtScan);
+
+    var ul = el("because"); ul.innerHTML = "";
+    d.why.slice(0,3).forEach(function(w){
+      var li=document.createElement("li"); li.textContent=w; ul.appendChild(li);
+    });
+    el("change").textContent = changeText(s, d);
+
+    var rl = el("reads"); rl.innerHTML = "";
+    readsFor(s, d.tier).forEach(function(r){
+      var li=document.createElement("li"), an=document.createElement("a");
+      an.textContent=r[0]; an.href=withUtm(r[1]); an.rel="noopener";
+      li.appendChild(an); rl.appendChild(li);
+    });
+
+    ctaFor(d.tier);
+    syncUrl(s);
+  }
+
+  function syncUrl(s){
+    try{
+      var u = new URL(location.href), q = u.searchParams;
+      q.set("n", s.idx); q.set("g", s.growth);
+      q.set("d", s.dimSel === "custom" ? "c" + s.dims : s.dims);
+      q.set("l", s.lat); q.set("q", s.qps); q.set("f", s.filter);
+      q.set("m", s.match); q.set("c", s.change); q.set("t", s.tenancy);
+      q.set("r", s.res); q.set("p", s.pg);
+      history.replaceState(null,"",u.toString());
+    }catch(e){}
+  }
+
+  function restore(){
+    var q;
+    try{ q = new URLSearchParams(location.search); }catch(e){ return; }
+    function pick(name,val){
+      if(val === null) return;
+      var n = document.querySelector('input[name=' + name + '][value="' + String(val).replace(/"/g,"") + '"]');
+      if(n) n.checked = true;
+    }
+    var n = parseInt(q.get("n"),10);
+    if(!isNaN(n) && n >= 0 && n <= 5) el("items").value = n;
+    pick("growth", q.get("g"));
+    var d = q.get("d");
+    if(d){
+      if(d.charAt(0) === "c"){
+        var cv = parseInt(d.slice(1),10);
+        if(!isNaN(cv)){ el("dimCustom").value = cv; pick("dims","custom"); }
+      } else pick("dims", d);
+    }
+    pick("lat",q.get("l")); pick("qps",q.get("q")); pick("filter",q.get("f"));
+    pick("match",q.get("m")); pick("change",q.get("c")); pick("tenancy",q.get("t"));
+    pick("res",q.get("r")); pick("pg",q.get("p"));
+  }
+
+  el("deck").addEventListener("input", render);
+  el("deck").addEventListener("change", render);
+
+  el("shareBtn").addEventListener("click", function(){
+    var ok = el("shareOk");
+    function flash(){ ok.classList.add("on"); setTimeout(function(){ ok.classList.remove("on"); },1600); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(location.href).then(flash, flash);
+    } else {
+      var t=document.createElement("textarea"); t.value=location.href;
+      document.body.appendChild(t); t.select();
+      try{ document.execCommand("copy"); }catch(e){}
+      document.body.removeChild(t); flash();
+    }
+  });
+
+  restore();
+  render();
+})();
+</script>
+</body>
+</html>
