@@ -46,15 +46,15 @@ describe('telemetry privacy properties', () => {
   });
 
   it('reports which assumptions were overridden, never their values', () => {
-    const custom = { ...DEFAULT_ASSUMPTIONS, pgvectorCeiling: 5_000_000 };
+    const custom = { ...DEFAULT_ASSUMPTIONS, ramBudgetGb: 128 };
     const payload = buildPayload(
       DEFAULT_WORKLOAD,
       custom,
       decide(DEFAULT_WORKLOAD, custom),
       'organic',
     );
-    expect(payload.assumptionsChanged).toEqual(['pgvectorCeiling']);
-    expect(JSON.stringify(payload)).not.toContain('5000000');
+    expect(payload.assumptionsChanged).toEqual(['ramBudgetGb']);
+    expect(JSON.stringify(payload)).not.toContain('128');
   });
 
   it('sends as text/plain so the beacon is not blocked by a preflight', () => {
@@ -68,7 +68,8 @@ describe('telemetry privacy properties', () => {
   });
 
   it('matches the verdict the user actually saw', () => {
-    const workload = { ...DEFAULT_WORKLOAD, residency: 'airgapped' as const };
+    // Past the memory-derived HNSW ceiling, so genuinely tier 3.
+    const workload = { ...DEFAULT_WORKLOAD, items: 50_000_000, dims: 1536 };
     const decision = decide(workload, DEFAULT_ASSUMPTIONS);
     const payload = buildPayload(workload, DEFAULT_ASSUMPTIONS, decision, 'organic');
     expect(payload.tier).toBe(decision.tier);

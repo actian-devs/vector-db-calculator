@@ -25,23 +25,45 @@ deployment) produce one of four verdicts:
 |---|---|---|
 | 0 | You don't need a vector database yet | A flat in-memory scan fits at the chosen latency target, with no filtering, one workspace, low concurrency |
 | 1 | You need keyword search, not vectors | Queries are exact terms rather than meaning |
-| 2 | pgvector will carry you for now | Within the single-Postgres ceiling, light filtering, modest concurrency |
-| 3 | You need a dedicated vector database | Heavy filtering at scale, past the ceiling, hybrid search, constant churn, multi-tenant isolation, or air-gapped and edge deployment |
+| 2 | pgvector will carry you for now | Past a flat scan but within what one Postgres instance can index on the memory you have |
+| 3 | You need a dedicated vector database | Past that memory-derived ceiling, filtering on every query at scale, or several operational demands stacking on a workload that has already outgrown a flat scan |
 
 The verdict recalculates on every change. There is no submit step.
 
+### The ceilings are derived, not asserted
+
+There is no fixed "pgvector stops at a million rows" anywhere in the model. Both boundaries
+are computed from the inputs:
+
+- The **flat-scan ceiling** is the smaller of what the latency target allows
+  (`latency x throughput / (2 x dimensions)`) and what fits in the memory budget. One million
+  384-dimension vectors scan in roughly 77ms; the same count at 3072 dimensions takes eight
+  times as long and lands in a different tier. Dimensions change the answer, as they should.
+- The **pgvector ceiling** is `memory / (dimensions x 4 bytes x HNSW overhead)`. On the
+  default 32GB it is about 3.5M at 1536 dimensions and 14M at 384. Raise the memory budget
+  and it moves.
+
+No single capability forces a dedicated store either. Hybrid search, multi-tenancy, constant
+churn and air-gapped deployment are things Postgres does, so each is listed under "things to
+design for" with the way Postgres meets it, not used as grounds for escalating. Escalation
+needs those demands to stack *and* the workload to be past its flat ceiling, and the bar is
+higher when you already run Postgres.
+
 ### What makes it usable for a real decision
 
-- **Every assumption is editable.** The thresholds and the throughput range are visible in an
-  assumptions panel and can be replaced with figures from your own hardware. The verdict
-  recalculates, and what you set travels with the shared link.
+- **Every assumption is editable.** The memory budget, the HNSW overhead and the throughput
+  range are visible in an assumptions panel and can be replaced with figures from your own
+  hardware. The verdict recalculates, and what you set travels with the shared link.
 - **Today against twelve months.** The cost table shows both, so the consequence of the growth
   setting is visible rather than folded into one number.
 - **Each reason is traceable.** Reasons that come from a threshold record which assumption
   produced them.
+- **The demands that did not decide it are shown anyway.** A reviewer's first objection is
+  usually "but Postgres does that". The page answers it in advance rather than leaving the
+  demand unmentioned.
 - **The result can leave the page.** Copy it as Markdown for an ADR or a ticket, or download
-  JSON. The record carries the assumptions actually used, so a reviewer can tell whether the
-  model was calibrated or taken as shipped.
+  JSON. The record carries the assumptions actually used and the considerations that were
+  weighed, so a reviewer can tell whether the model was calibrated or taken as shipped.
 
 ## Architecture
 
@@ -54,16 +76,22 @@ or inside an air-gapped network.
 
 ## Tests
 
-87 in total. Run both before pushing.
+90 in total. Run both before pushing.
 
 ```bash
-npm run test       # 52 unit tests over the decision model, formatting and URL state
+npm run test       # 55 unit tests over the decision model, formatting and URL state
 npm run test:e2e   # 35 browser tests, desktop and mobile, against the built export
 ```
 
 The unit tests pin the model: tier outcomes, that assumptions actually drive the result, that
 growth is decided on the twelve-month count, and that hostile query strings fall back rather
 than breaking. Several cases exist to catch thresholds being tuned toward the paid tier.
+
+`lib/__tests__/decision.test.ts` opens with a block named "review findings stay fixed". Each
+case there is something a reader challenged us on, kept as a test so it cannot quietly come
+back: that a flat scan is never claimed to meet a target the scan estimate misses, that
+dimensions change the verdict at a fixed item count, and that the pgvector ceiling scales
+with memory rather than sitting at one million.
 
 The end-to-end tests pin what only a browser can show: that the UI is wired to the model, that
 a shared link reproduces a result exactly, and that the privacy claims hold at runtime. Two of

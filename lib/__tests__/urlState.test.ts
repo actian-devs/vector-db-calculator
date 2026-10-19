@@ -36,8 +36,8 @@ describe('url state', () => {
   });
 
   it('round-trips overridden assumptions', () => {
-    const a: Assumptions = { ...DEFAULT_ASSUMPTIONS, pgvectorCeiling: 5_000_000 };
-    expect(roundTrip(DEFAULT_WORKLOAD, a).assumptions.pgvectorCeiling).toBe(5_000_000);
+    const a: Assumptions = { ...DEFAULT_ASSUMPTIONS, ramBudgetGb: 128 };
+    expect(roundTrip(DEFAULT_WORKLOAD, a).assumptions.ramBudgetGb).toBe(128);
   });
 
   it('omits assumptions left at their defaults', () => {
@@ -57,8 +57,8 @@ describe('url state', () => {
   });
 
   it('clamps an out-of-range assumption rather than trusting it', () => {
-    const { assumptions } = decodeState('?a.pgvectorCeiling=999999999999');
-    expect(assumptions.pgvectorCeiling).toBeLessThanOrEqual(1_000_000_000);
+    const { assumptions } = decodeState('?a.ramBudgetGb=999999999999');
+    expect(assumptions.ramBudgetGb).toBeLessThanOrEqual(4096);
   });
 
   it('preserves utm_campaign when writing state back', () => {

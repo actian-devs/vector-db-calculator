@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ASSUMPTIONS } from '../assumptions';
+import { flatCeiling, footprint, pgvectorCeiling, scanMs } from '../compute';
 import { decide } from '../decision';
 import { DEFAULT_WORKLOAD } from '../urlState';
 import type { Tier, Workload } from '../types';
@@ -8,123 +9,196 @@ const w = (over: Partial<Workload> = {}): Workload => ({ ...DEFAULT_WORKLOAD, ..
 const tierOf = (over: Partial<Workload> = {}, a = DEFAULT_ASSUMPTIONS): Tier =>
   decide(w(over), a).tier;
 
+/**
+ * The cases in this block come from engineering review of the live tool. Each
+ * one is something a reader could have challenged us on in public. They are the
+ * reason the ceilings are derived rather than asserted, so do not replace them
+ * with fixed thresholds.
+ */
+describe('review findings stay fixed', () => {
+  it('never claims a flat scan meets a target the scan estimate misses', () => {
+    // The original bug: the page printed "0.31 to 3.1s" for 1M x 1536 and said
+    // a flat scan met a 200ms target on the same screen.
+    const cases: Workload[] = [
+      w({ items: 1_000_000, dims: 1536, latencyMs: 200 }),
+      w({ items: 1_000_000, dims: 3072, latencyMs: 200 }),
+      w({ items: 100_000, dims: 1536, latencyMs: 10 }),
+      w({ items: 5_000_000, dims: 768, latencyMs: 50 }),
+    ];
+    for (const workload of cases) {
+      const d = decide(workload, DEFAULT_ASSUMPTIONS);
+      if (d.tier !== 0) continue;
+      const best = scanMs(d.items12, workload.dims, DEFAULT_ASSUMPTIONS.gflopsHigh);
+      expect(best).toBeLessThanOrEqual(workload.latencyMs);
+    }
+  });
+
+  it('does not put 1M x 1536 on a flat scan at a 200ms target', () => {
+    expect(tierOf({ items: 1_000_000, dims: 1536, latencyMs: 200 })).not.toBe(0);
+  });
+
+  it('lets dimensions change the verdict at a fixed item count', () => {
+    // Same count, a quarter of the work. The old fixed thresholds could not
+    // tell these apart.
+    // 1M at 384 scans in ~77ms; the same count at 3072 takes ~614ms.
+    const small = tierOf({ items: 1_000_000, dims: 384, latencyMs: 200 });
+    const large = tierOf({ items: 1_000_000, dims: 3072, latencyMs: 200 });
+    expect(small).toBe(0);
+    expect(large).not.toBe(0);
+  });
+
+  it('scales the pgvector ceiling with memory and dimensions, not a fixed 1M', () => {
+    // A reader who has run more than a million vectors on pgvector is right,
+    // and the tool now agrees with them when the hardware supports it.
+    expect(tierOf({ items: 3_000_000, dims: 768, latencyMs: 50 })).toBe(2);
+    expect(pgvectorCeiling(w({ dims: 1536 }), DEFAULT_ASSUMPTIONS)).toBeGreaterThan(1_000_000);
+    // More memory pushes it further out.
+    const bigger = { ...DEFAULT_ASSUMPTIONS, ramBudgetGb: 256 };
+    expect(pgvectorCeiling(w({ dims: 1536 }), bigger)).toBeGreaterThan(
+      pgvectorCeiling(w({ dims: 1536 }), DEFAULT_ASSUMPTIONS),
+    );
+  });
+
+  it('matches the stated ceiling to the memory arithmetic', () => {
+    const a = DEFAULT_ASSUMPTIONS;
+    const ceiling = pgvectorCeiling(w({ dims: 1536 }), a);
+    const indexBytes = ceiling * 1536 * a.bytesPerComponentF32 * a.hnswMemoryOverhead;
+    expect(indexBytes / 1e9).toBeCloseTo(a.ramBudgetGb, 6);
+  });
+});
+
+/**
+ * No single capability forces a dedicated store. Postgres does all of these,
+ * and treating any of them as an automatic escalation is vendor bias rather
+ * than engineering.
+ */
+describe('no capability alone forces a dedicated store', () => {
+  it.each<[string, Partial<Workload>]>([
+    ['hybrid search', { matching: 'hybrid' }],
+    ['many tenants', { tenancy: 'many' }],
+    ['constant churn', { changeRate: 'constant' }],
+    ['air-gapped deployment', { residency: 'airgapped' }],
+    ['edge deployment', { residency: 'edge' }],
+    ['always filtering, at modest scale', { filtering: 'always' }],
+  ])('%s on a small workload does not reach tier 3', (_label, over) => {
+    expect(tierOf({ items: 10_000, dims: 384, ...over })).not.toBe(3);
+  });
+
+  it('air-gapped is never a reason on its own, at any scale', () => {
+    // Postgres self-hosts with no outbound dependency, so the network boundary
+    // is not an argument for a commercial database.
+    const d = decide(w({ items: 100_000, dims: 384, residency: 'airgapped' }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).not.toBe(3);
+    expect(d.reasons.some((r) => r.id === 'airgapped')).toBe(false);
+  });
+
+  it('surfaces the demand as a consideration instead of hiding it', () => {
+    const d = decide(w({ matching: 'hybrid' }), DEFAULT_ASSUMPTIONS);
+    const hybrid = d.considerations.find((c) => c.id === 'hybrid');
+    expect(hybrid).toBeDefined();
+    expect(hybrid!.handledBy).toMatch(/Postgres/);
+  });
+
+  it('escalates when demands stack on a workload that is already large', () => {
+    expect(
+      tierOf({
+        items: 2_000_000,
+        dims: 1536,
+        matching: 'hybrid',
+        tenancy: 'many',
+        changeRate: 'constant',
+        postgres: false,
+      }),
+    ).toBe(3);
+  });
+});
+
+describe('running Postgres already changes the recommendation', () => {
+  const stacked: Partial<Workload> = {
+    items: 400_000,
+    dims: 1536,
+    latencyMs: 50,
+    matching: 'hybrid',
+    tenancy: 'many',
+  };
+
+  it('raises the bar to leave a database you already operate', () => {
+    expect(tierOf({ ...stacked, postgres: true })).toBe(2);
+    expect(tierOf({ ...stacked, postgres: false })).toBe(3);
+  });
+});
+
 describe('tier outcomes', () => {
-  it('leaves a tiny quiet workload on a flat file', () => {
-    expect(tierOf({ items: 1_000 })).toBe(0);
-  });
-
-  it('keeps 100K under a 50ms target on a flat scan', () => {
-    expect(tierOf({ items: 100_000, latencyMs: 50 })).toBe(0);
-  });
-
-  it('does not force a dedicated store for on-premises alone', () => {
-    // pgvector runs perfectly well on your own hardware. Only air-gapped and
-    // edge are genuine drivers.
-    expect(tierOf({ items: 10_000, residency: 'onprem' })).toBe(0);
-  });
-
-  it('moves to an index when the latency target tightens', () => {
-    expect(tierOf({ items: 100_000, latencyMs: 10 })).toBe(2);
+  it('leaves a genuinely small workload on a flat file', () => {
+    expect(tierOf({ items: 1_000, dims: 384 })).toBe(0);
   });
 
   it('answers exact-term matching with a keyword index at any scale', () => {
-    expect(tierOf({ items: 1_000_000, matching: 'exact' })).toBe(1);
+    expect(tierOf({ items: 50_000_000, matching: 'exact' })).toBe(1);
     expect(tierOf({ items: 1_000, matching: 'exact' })).toBe(1);
   });
 
-  it('keeps light filtering at small scale on pgvector', () => {
-    expect(tierOf({ items: 10_000, filtering: 'always' })).toBe(2);
+  it('moves past a flat scan when the latency target tightens', () => {
+    // 500K at 384 scans in ~38ms: fine for 200ms, not for 10ms.
+    expect(tierOf({ items: 500_000, dims: 384, latencyMs: 200 })).toBe(0);
+    expect(tierOf({ items: 500_000, dims: 384, latencyMs: 10 })).toBe(2);
   });
 
-  it.each<[string, Partial<Workload>]>([
-    ['hybrid matching', { matching: 'hybrid' }],
-    ['air-gapped residency', { residency: 'airgapped' }],
-    ['edge residency', { residency: 'edge' }],
-    ['many tenants', { tenancy: 'many' }],
-    ['constant churn', { changeRate: 'constant' }],
-    ['always filtering at 1M', { items: 1_000_000, filtering: 'always' }],
-    ['10M items', { items: 10_000_000 }],
-    ['1M with 10x growth', { items: 1_000_000, growth: 10 }],
-  ])('needs a dedicated store for %s', (_label, over) => {
-    expect(tierOf(over)).toBe(3);
+  it('decides on the twelve-month count rather than today', () => {
+    expect(tierOf({ items: 100_000, dims: 384, growth: 1, latencyMs: 200 })).toBe(0);
+    expect(tierOf({ items: 100_000, dims: 384, growth: 100, latencyMs: 200 })).toBe(2);
   });
 
-  it('does not escalate purely because load is high', () => {
-    // 1M at a relaxed target is still pgvector territory even when busy.
-    expect(tierOf({ items: 1_000_000, latencyMs: 200, qps: 101 })).toBe(2);
-    // Tightening the target to 10ms under that load is what tips it.
-    expect(tierOf({ items: 1_000_000, latencyMs: 10, qps: 101 })).toBe(3);
+  it('warns when a flat scan only holds on favourable hardware', () => {
+    const d = decide(w({ items: 100_000, dims: 1536, latencyMs: 50 }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(0);
+    expect(d.reasons.some((r) => r.id === 'marginal-hardware')).toBe(true);
   });
 });
 
 describe('the lower tiers stay reachable', () => {
   // Guards hard rule 3 in AGENTS.md. The tool is credible because it sometimes
-  // says no. If these fail because thresholds were tuned toward the paid tier,
-  // the guardrail is working. Do not loosen the assertions.
-  it('reaches tier 0 on the shipped defaults', () => {
-    expect(tierOf()).toBe(0);
+  // says no. Do not loosen these.
+  it('reaches tier 0', () => {
+    expect(tierOf({ items: 10_000, dims: 384 })).toBe(0);
   });
 
-  it('reaches tier 1 on the shipped defaults', () => {
+  it('reaches tier 1', () => {
     expect(tierOf({ matching: 'exact' })).toBe(1);
   });
 
-  it('does not put a default workload on tier 3', () => {
-    expect(tierOf()).not.toBe(3);
+  it('reaches tier 2 without any operational demands', () => {
+    expect(tierOf({ items: 2_000_000, dims: 384, latencyMs: 50 })).toBe(2);
   });
 });
 
-describe('reasons', () => {
+describe('reasons and assumptions', () => {
   it('always explains itself', () => {
-    const d = decide(w({ residency: 'airgapped' }), DEFAULT_ASSUMPTIONS);
+    const d = decide(w({ items: 50_000_000, dims: 1536 }), DEFAULT_ASSUMPTIONS);
     expect(d.reasons.length).toBeGreaterThan(0);
-    expect(d.reasons[0].text).toContain('air-gapped');
+    expect(d.reasons[0].text).toMatch(/GB/);
   });
 
   it('cites the assumption a threshold-driven reason depends on', () => {
-    const d = decide(w({ items: 10_000_000 }), DEFAULT_ASSUMPTIONS);
-    const past = d.reasons.find((r) => r.id === 'past-pgvector');
-    expect(past?.dependsOn).toContain('pgvectorCeiling');
+    const d = decide(w({ items: 50_000_000, dims: 1536 }), DEFAULT_ASSUMPTIONS);
+    expect(d.reasons.find((r) => r.id === 'past-pgvector')?.dependsOn).toContain('ramBudgetGb');
+  });
+
+  it('raising the memory budget keeps a large workload on Postgres', () => {
+    const big = w({ items: 20_000_000, dims: 1536, latencyMs: 50 });
+    expect(decide(big, DEFAULT_ASSUMPTIONS).tier).toBe(3);
+    expect(decide(big, { ...DEFAULT_ASSUMPTIONS, ramBudgetGb: 512 }).tier).toBe(2);
   });
 
   it('gives a way back for every tier 3 verdict', () => {
-    const d = decide(w({ tenancy: 'many' }), DEFAULT_ASSUMPTIONS);
+    const d = decide(w({ items: 50_000_000, dims: 1536 }), DEFAULT_ASSUMPTIONS);
     expect(d.whatWouldChange.length).toBeGreaterThan(10);
   });
-});
 
-describe('assumptions actually drive the result', () => {
-  it('raising the pgvector ceiling keeps a large workload off tier 3', () => {
-    const big = w({ items: 10_000_000 });
-    expect(decide(big, DEFAULT_ASSUMPTIONS).tier).toBe(3);
-    const relaxed = { ...DEFAULT_ASSUMPTIONS, pgvectorCeiling: 100_000_000 };
-    expect(decide(big, relaxed).tier).toBe(2);
-  });
-
-  it('lowering the flat ceiling pushes a small workload off tier 0', () => {
-    const small = w({ items: 100_000, latencyMs: 50 });
-    expect(decide(small, DEFAULT_ASSUMPTIONS).tier).toBe(0);
-    const strict = { ...DEFAULT_ASSUMPTIONS, flatScanUnder50ms: 1_000 };
-    expect(decide(small, strict).tier).toBe(2);
-  });
-
-  it('reports the flat ceiling implied by the chosen latency target', () => {
-    expect(decide(w({ latencyMs: 10 }), DEFAULT_ASSUMPTIONS).flatCeiling).toBe(10_000);
-    expect(decide(w({ latencyMs: 200 }), DEFAULT_ASSUMPTIONS).flatCeiling).toBe(1_000_000);
-    // "Does not matter" uses the same practical ceiling as the 200ms target.
-    expect(decide(w({ latencyMs: 0 }), DEFAULT_ASSUMPTIONS).flatCeiling).toBe(1_000_000);
-  });
-});
-
-describe('growth', () => {
-  it('decides on the twelve-month count, not today', () => {
-    expect(tierOf({ items: 1_000_000, growth: 1, latencyMs: 200 })).toBe(0);
-    expect(tierOf({ items: 1_000_000, growth: 10, latencyMs: 200 })).toBe(3);
-  });
-
-  it('exposes the projected count', () => {
-    expect(decide(w({ items: 100_000, growth: 10 }), DEFAULT_ASSUMPTIONS).items12).toBe(
-      1_000_000,
-    );
+  it('reports a flat ceiling consistent with the footprint shown', () => {
+    const workload = w({ dims: 1536, latencyMs: 200 });
+    const ceiling = flatCeiling(workload, DEFAULT_ASSUMPTIONS);
+    const f = footprint(ceiling, workload.dims, DEFAULT_ASSUMPTIONS);
+    expect(f.scanMsLow).toBeCloseTo(200, 6);
   });
 });

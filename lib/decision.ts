@@ -1,16 +1,38 @@
-import { flatCeiling, itemsAfterGrowth } from './compute';
+import { flatCeiling, itemsAfterGrowth, pgvectorCeiling, scanMs } from './compute';
 import { compactItems } from './format';
-import type { Assumptions, Decision, Reason, Tier, TierCopy, Workload } from './types';
+import type {
+  Assumptions,
+  Consideration,
+  Decision,
+  Reason,
+  Tier,
+  TierCopy,
+  Workload,
+} from './types';
 
 /**
  * The decision model.
  *
  * Pure and framework-free. Given a workload and a set of assumptions it returns
- * one tier plus the reasons behind it.
+ * one tier, the reasons behind it, and the things to watch that did not change
+ * the verdict.
+ *
+ * Two rules this model is built around, both the result of review feedback:
+ *
+ * 1. No capability alone forces a dedicated store. Postgres with pgvector does
+ *    hybrid search, multi-tenancy, air-gapped deployment and frequent updates.
+ *    Treating any of those as an automatic escalation is vendor bias, not
+ *    engineering, and a reader who has run those setups will say so. They
+ *    surface as considerations instead, and only tip the verdict in
+ *    combination, at scale.
+ *
+ * 2. Ceilings are derived, never asserted. The flat-scan ceiling comes from the
+ *    same scan arithmetic the page displays, so the recommendation cannot
+ *    contradict the number next to it. The pgvector ceiling comes from whether
+ *    the HNSW index fits in memory.
  *
  * Editorial constraint, see AGENTS.md: tiers 0 and 1 are real outcomes. Do not
- * tune thresholds so that more workloads land on tier 3. The unit tests assert
- * the lower tiers stay reachable.
+ * tune thresholds so that more workloads land on tier 3.
  */
 
 export const TIER_COPY: Record<Tier, TierCopy> = {
@@ -32,26 +54,83 @@ export const TIER_COPY: Record<Tier, TierCopy> = {
   3: {
     badge: 'TIER 3',
     headline: 'You need a dedicated vector database',
-    lede: 'This is where a dedicated store earns its place, because of how your workload filters, scales or has to be deployed.',
+    lede: 'This is where a dedicated store earns its place, because of the combination of scale and operational demands on this workload.',
   },
 };
 
-function reason(
-  id: string,
-  text: string,
-  dependsOn?: (keyof Assumptions)[],
-): Reason {
+function reason(id: string, text: string, dependsOn?: (keyof Assumptions)[]): Reason {
   return dependsOn ? { id, text, dependsOn } : { id, text };
+}
+
+/**
+ * Operational demands that are real work but that Postgres can meet.
+ *
+ * Each names how it is normally solved there, so a reader can check our
+ * reasoning rather than take the verdict on faith. They escalate only when
+ * several stack up on a workload that is already large.
+ */
+function considerationsFor(w: Workload, items12: number, a: Assumptions): Consideration[] {
+  const out: Consideration[] = [];
+
+  if (w.matching === 'hybrid') {
+    out.push({
+      id: 'hybrid',
+      text: 'You need keyword and semantic search together.',
+      handledBy:
+        'Postgres does this natively with tsvector full-text alongside pgvector, combined with reciprocal rank fusion. A dedicated store earns its place here only if the fusion and ranking become the hard part.',
+    });
+  }
+  if (w.tenancy === 'many') {
+    out.push({
+      id: 'multi-tenant',
+      text: 'Many tenants share one store.',
+      handledBy:
+        'Row-level security, a tenant column with a partial index, or partitioning covers this on Postgres, and plenty of teams run it that way. It gets harder when per-tenant filtering meets a large index.',
+    });
+  }
+  if (w.changeRate === 'constant') {
+    out.push({
+      id: 'churn',
+      text: 'The data changes constantly, with updates and deletes.',
+      handledBy:
+        'HNSW on pgvector accepts updates. Watch index bloat and vacuum behaviour under sustained churn rather than assuming it will not work.',
+    });
+  }
+  if (w.residency === 'airgapped') {
+    out.push({
+      id: 'airgapped',
+      text: 'The data has to stay inside an air-gapped network.',
+      handledBy:
+        'This is not an argument for any particular database. Postgres self-hosts cleanly with no outbound dependency, so judge this on scale and operations, not on the network boundary.',
+    });
+  }
+  if (w.residency === 'edge') {
+    out.push({
+      id: 'edge',
+      text: 'This runs on edge or on-device hardware.',
+      handledBy:
+        'The constraint here is the memory budget above, not the engine. On constrained hardware an embedded store is usually a better fit than a Postgres instance, so set the memory figure to what the device actually has.',
+    });
+  }
+  if (w.filtering === 'always' && items12 > a.heavyFilterCeiling) {
+    out.push({
+      id: 'filtering',
+      text: `Every query filters by metadata, at ${compactItems(items12)} items.`,
+      handledBy:
+        'This is where a general-purpose planner struggles most. It can abandon the index and exact-sort the survivors, which keeps recall and spends latency, or keep the index and lose recall.',
+    });
+  }
+  return out;
 }
 
 export function decide(w: Workload, a: Assumptions): Decision {
   const items12 = itemsAfterGrowth(w);
-  const ceiling = flatCeiling(w, a);
-  const busy = w.qps >= 100;
+  const flat = flatCeiling(w, a);
+  const pg = pgvectorCeiling(w, a);
+  const considerations = considerationsFor(w, items12, a);
   const reasons: Reason[] = [];
 
-  // Exact-term matching is answered by a keyword index whatever the scale,
-  // so it short-circuits before any vector consideration.
+  // Exact-term matching is answered by a keyword index whatever the scale.
   if (w.matching === 'exact') {
     reasons.push(
       reason(
@@ -59,96 +138,71 @@ export function decide(w: Workload, a: Assumptions): Decision {
         'you match exact terms rather than meaning, which is what a keyword index is for',
       ),
     );
-    if (items12 > a.pgvectorCeiling) {
+    if (items12 > pg) {
       reasons.push(
-        reason(
-          'fts-scales',
-          `full-text indexes stay fast at ${compactItems(items12)} items`,
-        ),
+        reason('fts-scales', `full-text indexes stay fast at ${compactItems(items12)} items`),
       );
     }
-    return finish(1, items12, ceiling, reasons, w, a);
+    return finish(1, items12, flat, pg, reasons, considerations, w, a);
   }
 
-  if (w.residency === 'airgapped') {
-    reasons.push(
-      reason('airgapped', 'your data has to stay inside an air-gapped network'),
-    );
-  }
-  if (w.residency === 'edge') {
-    reasons.push(reason('edge', 'this runs on edge or on-device hardware'));
-  }
-  if (w.matching === 'hybrid') {
-    reasons.push(
-      reason('hybrid', 'you need keyword and semantic search together'),
-    );
-  }
-  if (w.tenancy === 'many') {
+  // --- Tier 3: scale first, operational demands only in combination ---
+
+  if (items12 > pg) {
     reasons.push(
       reason(
-        'multi-tenant',
-        'many tenants share one store, so you need isolation per tenant',
+        'past-pgvector',
+        `at ${compactItems(items12)} items and ${w.dims} dimensions the HNSW index needs about ` +
+          `${Math.round((items12 * w.dims * a.bytesPerComponentF32 * a.hnswMemoryOverhead) / 1e9)}GB, ` +
+          `past the ${a.ramBudgetGb}GB you said is available`,
+        ['ramBudgetGb', 'hnswMemoryOverhead'],
       ),
     );
   }
-  if (w.changeRate === 'constant') {
-    reasons.push(
-      reason('churn', 'the data changes constantly, with updates and deletes'),
-    );
-  }
+
   if (w.filtering === 'always' && items12 > a.heavyFilterCeiling) {
     reasons.push(
       reason(
         'heavy-filter',
-        `you always filter by metadata, at ${compactItems(items12)} items`,
+        `every query filters by metadata at ${compactItems(items12)} items, which is where a general-purpose planner starts trading recall against latency`,
         ['heavyFilterCeiling'],
       ),
     );
   }
-  if (w.filtering === 'sometimes' && items12 > a.pgvectorCeiling) {
+
+  // Several operational demands at once, on a workload already past a flat scan,
+  // is a different proposition from any one of them alone. Someone already
+  // running Postgres has a standing reason to stay, so the bar is higher.
+  const bar = w.postgres ? 3 : 2;
+  if (considerations.length >= bar && items12 > flat) {
     reasons.push(
       reason(
-        'filter-at-scale',
-        `you filter by metadata past ${compactItems(a.pgvectorCeiling)} items`,
-        ['pgvectorCeiling'],
-      ),
-    );
-  }
-  if (items12 > a.pgvectorCeiling) {
-    reasons.push(
-      reason(
-        'past-pgvector',
-        `${compactItems(items12)} items within 12 months is past the practical single-Postgres guide`,
-        ['pgvectorCeiling'],
-      ),
-    );
-  }
-  if (items12 > ceiling && w.latencyMs !== 0 && busy) {
-    reasons.push(
-      reason(
-        'latency-under-load',
-        `a ${w.latencyMs}ms target at ${compactItems(items12)} items with real concurrency needs an index`,
-        ['flatScanUnder10ms', 'flatScanUnder50ms', 'flatScanUnder200ms'],
+        'stacked-demands',
+        `${considerations.length} operational demands stack on this workload at ${compactItems(items12)} items, ` +
+          (w.postgres
+            ? 'which is enough to outweigh staying on the Postgres you already run'
+            : 'and you would be standing up a new system either way'),
       ),
     );
   }
 
-  if (reasons.length > 0) return finish(3, items12, ceiling, reasons, w, a);
+  if (reasons.length > 0) {
+    return finish(3, items12, flat, pg, reasons, considerations, w, a);
+  }
+
+  // --- Tier 0: a flat scan genuinely holds ---
 
   const quiet = w.qps <= 10;
-  if (
-    items12 <= ceiling &&
-    quiet &&
-    w.filtering === 'never' &&
-    w.tenancy === 'single'
-  ) {
+  if (items12 <= flat && quiet && w.filtering === 'never' && w.tenancy === 'single') {
+    const optimistic = scanMs(items12, w.dims, a.gflopsHigh);
+    const pessimistic = scanMs(items12, w.dims, a.gflopsLow);
     reasons.push(
       reason(
         'fits-flat',
-        `${compactItems(items12)} items fits a flat in-memory scan at your ${
-          w.latencyMs === 0 ? 'relaxed latency' : `under ${w.latencyMs}ms`
-        } target`,
-        ['flatScanUnder10ms', 'flatScanUnder50ms', 'flatScanUnder200ms'],
+        `scanning ${compactItems(items12)} vectors of ${w.dims} dimensions takes about ` +
+          `${optimistic < 1 ? optimistic.toFixed(2) : Math.round(optimistic)}ms` +
+          (w.latencyMs === 0 ? '' : `, inside your ${w.latencyMs}ms target`),
+        ['gflopsHigh'],
       ),
     );
     reasons.push(
@@ -157,38 +211,33 @@ export function decide(w: Workload, a: Assumptions): Decision {
         'no metadata filtering and a single workspace, so there is nothing to index around',
       ),
     );
-    if (w.qps <= 1) {
+    if (w.latencyMs !== 0 && pessimistic > w.latencyMs) {
       reasons.push(
         reason(
-          'no-concurrency',
-          'under one query per second, so concurrency is not a factor',
+          'marginal-hardware',
+          `on slower hardware the same scan could take ${Math.round(pessimistic)}ms, so measure before relying on it`,
+          ['gflopsLow'],
         ),
       );
     }
-    return finish(0, items12, ceiling, reasons, w, a);
+    return finish(0, items12, flat, pg, reasons, considerations, w, a);
   }
+
+  // --- Tier 2: an index on Postgres ---
 
   reasons.push(
     reason(
       'within-hnsw',
-      `${compactItems(items12)} items is within reach of an HNSW index on Postgres`,
-      ['pgvectorCeiling'],
+      `${compactItems(items12)} items at ${w.dims} dimensions indexes inside your ${a.ramBudgetGb}GB budget`,
+      ['ramBudgetGb', 'hnswMemoryOverhead'],
     ),
   );
-  if (items12 > ceiling) {
+  if (items12 > flat) {
     reasons.push(
       reason(
         'past-flat',
-        'it is past what a flat scan holds at your latency target, so you want an index',
-        ['flatScanUnder10ms', 'flatScanUnder50ms', 'flatScanUnder200ms'],
-      ),
-    );
-  }
-  if (w.filtering !== 'never') {
-    reasons.push(
-      reason(
-        'filter-ok',
-        'your filtering is light enough that the planner should cope at this size',
+        `a brute-force scan would take about ${Math.round(scanMs(items12, w.dims, a.gflopsHigh))}ms here, so you want an index`,
+        ['gflopsHigh'],
       ),
     );
   }
@@ -200,54 +249,55 @@ export function decide(w: Workload, a: Assumptions): Decision {
       ),
     );
   }
-  return finish(2, items12, ceiling, reasons, w, a);
+  return finish(2, items12, flat, pg, reasons, considerations, w, a);
 }
 
 function finish(
   tier: Tier,
   items12: number,
-  ceiling: number,
+  flat: number,
+  pg: number,
   reasons: Reason[],
+  considerations: Consideration[],
   w: Workload,
   a: Assumptions,
 ): Decision {
   return {
     tier,
     items12,
-    flatCeiling: ceiling,
+    flatCeiling: flat,
+    pgvectorCeiling: pg,
     reasons,
-    whatWouldChange: whatWouldChange(tier, items12, ceiling, w, a),
+    considerations,
+    whatWouldChange: whatWouldChange(tier, items12, flat, pg, w, a),
   };
 }
 
 export function whatWouldChange(
   tier: Tier,
   items12: number,
-  ceiling: number,
+  flat: number,
+  pg: number,
   w: Workload,
   a: Assumptions,
 ): string {
   if (tier === 3) {
-    const softeners: string[] = [];
-    if (w.filtering === 'always') softeners.push('drop the always-on metadata filter');
-    if (w.tenancy === 'many') softeners.push('give each tenant its own store');
-    if (w.matching === 'hybrid') softeners.push('stop needing keyword and semantic together');
-    if (w.changeRate === 'constant') softeners.push('move to batched daily updates');
-    if (w.residency === 'airgapped' || w.residency === 'edge') {
-      softeners.push('relax the deployment constraint');
+    const options: string[] = [];
+    if (items12 > pg) {
+      options.push(
+        `give the index more than ${a.ramBudgetGb}GB, or cut dimensions, which is the cheapest lever here`,
+      );
     }
-    if (items12 > a.pgvectorCeiling) {
-      softeners.push(`stay under ${compactItems(a.pgvectorCeiling)} items`);
-    }
-    return softeners.length > 0
-      ? `If you ${softeners.slice(0, 2).join(', or ')}, a simpler setup comes back into range.`
-      : 'Revisit if the workload simplifies, in filtering, tenancy or deployment.';
+    if (w.filtering === 'always') options.push('drop the always-on metadata filter');
+    if (items12 > pg) options.push(`stay under ${compactItems(pg)} items at these dimensions`);
+    options.push('reduce the number of operational demands landing on one store');
+    return `If you ${options.slice(0, 2).join(', or ')}, Postgres comes back into range.`;
   }
   if (tier === 2) {
-    return `If you pass ${compactItems(a.pgvectorCeiling)} items, start filtering on every query, or add tenants to the same store, revisit this.`;
+    return `If you pass ${compactItems(pg)} items at ${w.dims} dimensions, or stack more operational demands onto the same store, revisit this.`;
   }
   if (tier === 1) {
     return 'If you start needing “find things like this” rather than exact terms, run this again with meaning selected.';
   }
-  return `If you pass ${compactItems(ceiling)} items at this latency target, add filtering, or go past ten queries per second, revisit this.`;
+  return `If you pass ${compactItems(flat)} items at ${w.dims} dimensions, add filtering, or go past ten queries per second, revisit this.`;
 }

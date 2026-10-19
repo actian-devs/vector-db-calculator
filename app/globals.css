@@ -316,3 +316,20 @@ footer a { color: var(--dim); }
   left: 26px; top: 12px; background: var(--card); padding: 9px 13px;
   border-radius: 8px; z-index: 99; border: 1px solid var(--line);
 }
+
+/* considerations: demands that did not decide the verdict */
+.c-count {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.c-intro { font-size: 14px; color: var(--dim); line-height: 1.5; margin: 12px 0; }
+.considerations { list-style: none; margin: 0; padding: 0; display: grid; gap: 13px; }
+.considerations li { display: grid; gap: 3px; }
+.considerations b { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.considerations span { font-size: 14px; color: var(--ink-2); line-height: 1.5; }

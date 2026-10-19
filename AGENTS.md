@@ -73,8 +73,23 @@ relax them, and do not work around them to "improve conversion".
    editable by the user. Never present a threshold as measured.
 5. **The scan figure is an order-of-magnitude range** derived from the throughput assumptions,
    never a measurement.
+6. **Every ceiling is derived, never asserted.** There is no fixed "pgvector stops at one
+   million rows" number anywhere in the model, and there must not be one. The flat-scan
+   ceiling comes from the latency target, the dimensions and the throughput assumption; the
+   HNSW ceiling comes from the memory budget, the dimensions and the graph overhead. A reader
+   running four million rows on pgvector is not wrong, and the tool has to agree with them
+   when their hardware supports it.
+7. **No single capability forces a dedicated store.** Hybrid search, multi-tenancy, constant
+   churn, air-gapped and edge deployment are all things Postgres does. Each is a
+   `Consideration` with prose saying how Postgres meets it, not a `Reason`. Escalation needs
+   demands to stack *and* the workload to be past its flat ceiling. Air-gapped is never a
+   reason at any scale.
 
 If a request conflicts with any of these, stop and raise it rather than implementing it.
+
+Rules 6 and 7 came out of engineering review of the live page. `lib/__tests__/decision.test.ts`
+opens with a "review findings stay fixed" block that encodes each finding as a test. Treat a
+failure there as a regression in the argument, not a stale expectation.
 
 ## Privacy rules
 
@@ -100,6 +115,32 @@ same standard.
 Thresholds live in `DEFAULT_ASSUMPTIONS` in `lib/assumptions.ts` and flow through `decide()`.
 Changing a default changes everyone's result, so prefer leaving defaults alone and letting
 users override them in the assumptions panel.
+
+The assumptions are physical quantities, not verdicts:
+
+| Key | What it is |
+|---|---|
+| `ramBudgetGb` | Memory available to the index. Both ceilings scale with it. |
+| `hnswMemoryOverhead` | Graph structure on top of the raw vectors, as a multiplier. |
+| `gflopsLow` / `gflopsHigh` | Effective throughput range for a brute-force scan. |
+| `heavyFilterCeiling` | Where filtering on every query starts to strain one Postgres. |
+| `bytesPerComponentF32` / `bytesPerComponentInt8` | Fixed, not user editable. |
+
+Two derived ceilings fall out of those, in `lib/compute.ts`:
+
+- `flatCeiling(w, a)` is the smaller of what the latency target allows
+  (`latency x gflopsHigh / (2 x dims)`) and what memory holds.
+- `pgvectorCeiling(w, a)` is `ramBudgetGb / (dims x 4 bytes x hnswMemoryOverhead)`.
+
+This is why dimensions change the verdict at a fixed item count, and why raising the memory
+budget moves the boundary instead of being ignored. Do not reintroduce a fixed item count
+anywhere in this path.
+
+`decide()` returns two separate lists. `reasons` are what produced the tier. `considerations`
+are demands the workload has that did *not* produce it, each carrying `handledBy` prose
+naming how Postgres meets it. Both render, and both go into the exported decision record. If
+you add a new workload capability, it is a consideration until there is an argument for why
+Postgres cannot meet it.
 
 Add a new assumption by extending `Assumptions`, `DEFAULT_ASSUMPTIONS` and `ASSUMPTION_FIELDS`.
 URL encoding and the exported record pick it up automatically.

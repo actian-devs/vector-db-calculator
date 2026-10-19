@@ -85,6 +85,15 @@ export function decisionRecordMarkdown(
   lines.push(`**What would change this.** ${d.whatWouldChange}`);
   lines.push('');
 
+  if (d.considerations.length > 0) {
+    // A reviewer's first objection is usually "but Postgres does that". The
+    // record answers it in advance rather than leaving the demand unmentioned.
+    lines.push(`## Also weighed, and not grounds on their own`);
+    lines.push('');
+    d.considerations.forEach((c) => lines.push(`- **${c.text}** ${c.handledBy}`));
+    lines.push('');
+  }
+
   lines.push(`## Cost of the data`);
   lines.push('');
   lines.push('| Measure | Today | In 12 months |');
@@ -142,6 +151,7 @@ export interface DecisionRecordJson {
   assumptions: Assumptions;
   assumptionsChanged: string[];
   reasons: string[];
+  considerations: { text: string; handledBy: string }[];
   whatWouldChange: string;
   footprint: {
     today: ReturnType<typeof footprint>;
@@ -164,6 +174,7 @@ export function decisionRecordJson(
     assumptions: a,
     assumptionsChanged: changedAssumptions(a),
     reasons: d.reasons.map((r) => r.text),
+    considerations: d.considerations.map((c) => ({ text: c.text, handledBy: c.handledBy })),
     whatWouldChange: d.whatWouldChange,
     footprint: {
       today: footprint(w.items, w.dims, a),

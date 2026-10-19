@@ -409,6 +409,47 @@ export function Calculator() {
               <p className="change">{decision.whatWouldChange}</p>
             </div>
 
+            {decision.considerations.length > 0 ? (
+              /**
+               * The demands that did NOT decide the verdict, and how Postgres
+               * meets each one. Hybrid search and multi-tenancy are the two a
+               * reader is most likely to have been told require a dedicated
+               * store, so saying nothing about them reads as an omission even
+               * when the model handles them correctly.
+               */
+              <details className="card acard ccard">
+                <summary>
+                  <span className="card-h" style={{ margin: 0 }}>
+                    THINGS TO DESIGN FOR
+                  </span>
+                  <span className="c-count">{decision.considerations.length}</span>
+                  <svg
+                    className="chev"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 15l6-6 6 6" />
+                  </svg>
+                </summary>
+
+                <p className="c-intro">
+                  These did not decide the verdict. Postgres can meet them, and it is worth
+                  knowing how before you reach for another system.
+                </p>
+                <ul className="considerations" data-testid="considerations">
+                  {decision.considerations.map((c) => (
+                    <li key={c.id}>
+                      <b>{c.text}</b>
+                      <span>{c.handledBy}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+
             <AssumptionsPanel assumptions={assumptions} onChange={setAssumptions} />
 
             <TelemetryNotice />

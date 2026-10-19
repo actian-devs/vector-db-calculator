@@ -32,27 +32,37 @@ test.describe('verdicts', () => {
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 1');
   });
 
-  test('an air-gapped deployment needs a dedicated store', async ({ page }) => {
+  test('an air-gapped deployment is a consideration, not a verdict', async ({ page }) => {
+    // Postgres self-hosts with no outbound dependency, so the network boundary
+    // is not on its own an argument for a commercial database. Engineering
+    // review called this out, so the page has to show it was weighed.
     await page.goto('./');
     await pick(page, 'res', 'air-gapped');
-    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+    await expect(page.getByTestId('tier-badge')).not.toHaveText('TIER 3');
+    await page.locator('.ccard summary').click();
+    await expect(page.getByTestId('considerations')).toContainText(/air-gapped/i);
   });
 
   test('growth alone can change the verdict', async ({ page }) => {
     await page.goto('./');
-    await setItems(page, 3); // 1M
+    await setItems(page, 2); // 100K
     await pick(page, 'lat', '<200ms');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 0');
     await pick(page, 'growth', '10x');
-    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 2');
   });
 
   test('the verdict always explains itself', async ({ page }) => {
     await page.goto('./');
     await pick(page, 'tenancy', 'many tenants');
     const reasons = page.getByTestId('reasons').locator('li');
-    await expect(reasons.first()).toContainText(/tenant/i);
     expect(await reasons.count()).toBeGreaterThan(0);
+    // The demand itself is listed as something to design for, with the way
+    // Postgres meets it, rather than used as grounds for escalating.
+    await page.locator('.ccard summary').click();
+    const considerations = page.getByTestId('considerations');
+    await expect(considerations).toContainText(/tenant/i);
+    await expect(considerations).toContainText(/Postgres/);
   });
 });
 
@@ -73,21 +83,24 @@ test.describe('shared links', () => {
   });
 
   test('hostile query values fall back instead of breaking', async ({ page }) => {
-    await page.goto('./?n=999&l=abc&r=mars&a.pgvectorCeiling=notanumber');
+    await page.goto('./?n=999&l=abc&r=mars&a.ramBudgetGb=notanumber');
     await expect(page.getByTestId('tier-badge')).toBeVisible();
     await expect(page.getByTestId('verdict')).not.toBeEmpty();
   });
 });
 
 test.describe('assumptions are editable', () => {
-  test('raising the pgvector ceiling changes the verdict', async ({ page }) => {
+  test('raising the memory budget changes the verdict', async ({ page }) => {
+    // The ceiling is derived from memory and dimensions, not asserted as a
+    // flat one million rows, so a reader who runs bigger hardware can say so
+    // and the tool agrees with them.
     await page.goto('./');
     await setItems(page, 4); // 10M
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
 
     await page.locator('.acard summary').click();
-    const input = page.locator('input[data-assumption="pgvectorCeiling"]');
-    await input.fill('100000000');
+    const input = page.locator('input[data-assumption="ramBudgetGb"]');
+    await input.fill('512');
     await input.dispatchEvent('change');
 
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 2');
@@ -97,9 +110,9 @@ test.describe('assumptions are editable', () => {
   test('an overridden assumption travels with the link', async ({ page }) => {
     await page.goto('./');
     await page.locator('.acard summary').click();
-    await page.locator('input[data-assumption="pgvectorCeiling"]').fill('5000000');
-    await page.waitForFunction(() => window.location.search.includes('a.pgvectorCeiling'));
-    expect(page.url()).toContain('a.pgvectorCeiling=5000000');
+    await page.locator('input[data-assumption="ramBudgetGb"]').fill('128');
+    await page.waitForFunction(() => window.location.search.includes('a.ramBudgetGb'));
+    expect(page.url()).toContain('a.ramBudgetGb=128');
   });
 });
 
@@ -111,6 +124,7 @@ test.describe('export', () => {
     test.skip(testInfo.project.name !== 'desktop', 'clipboard permissions are desktop-only here');
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('./');
+    await setItems(page, 4); // 10M, past the memory-derived HNSW ceiling
     await pick(page, 'res', 'air-gapped');
     await page.getByTestId('copy-markdown').click();
 
@@ -119,6 +133,9 @@ test.describe('export', () => {
     expect(text).toContain('You need a dedicated vector database');
     expect(text).toContain('air-gapped');
     expect(text).toContain('## Assumptions used');
+    // The demands that did not decide it are in the record too, so a reviewer
+    // can see they were weighed rather than ignored.
+    expect(text).toContain('## Also weighed, and not grounds on their own');
     // The record must say whether the model was calibrated or taken as shipped.
     expect(text).toMatch(/Shipped defaults, unchanged|overridden by the author/);
   });
@@ -195,7 +212,7 @@ test.describe('responsive', () => {
     test.skip(testInfo.project.name !== 'mobile', 'small screens only');
     await page.goto('./');
     await expect(page.locator('.minibar')).toBeVisible();
-    await pick(page, 'res', 'air-gapped');
+    await setItems(page, 4); // 10M
     await expect(page.locator('.minibar b')).toHaveText(/dedicated vector database/i);
   });
 

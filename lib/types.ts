@@ -44,12 +44,10 @@ export interface Workload {
  * exported decision record carries whatever values were actually used.
  */
 export interface Assumptions {
-  /** Largest item count a flat in-memory scan holds under each latency target. */
-  flatScanUnder10ms: number;
-  flatScanUnder50ms: number;
-  flatScanUnder200ms: number;
-  /** Practical ceiling for an HNSW index on a single Postgres instance. */
-  pgvectorCeiling: number;
+  /** Memory available to hold vectors or a vector index, in gigabytes. */
+  ramBudgetGb: number;
+  /** Multiplier on raw vector size for the HNSW navigable graph. */
+  hnswMemoryOverhead: number;
   /** Item count above which always-on metadata filtering starts to strain. */
   heavyFilterCeiling: number;
   /** Bytes per vector component. */
@@ -74,13 +72,29 @@ export interface Reason {
   dependsOn?: (keyof Assumptions)[];
 }
 
+/**
+ * An operational demand that is real work but that Postgres can meet.
+ *
+ * Surfaced rather than silently escalating, so a reader can see we considered
+ * it and check the reasoning instead of taking the verdict on faith.
+ */
+export interface Consideration {
+  id: string;
+  text: string;
+  /** How this is normally solved without a dedicated store. */
+  handledBy: string;
+}
+
 export interface Decision {
   tier: Tier;
   /** Item count after growth. */
   items12: number;
-  /** Flat-scan ceiling implied by the chosen latency target. */
+  /** Flat-scan ceiling, derived from the latency target and dimensions. */
   flatCeiling: number;
+  /** HNSW ceiling, derived from the memory budget and dimensions. */
+  pgvectorCeiling: number;
   reasons: Reason[];
+  considerations: Consideration[];
   whatWouldChange: string;
 }
 
