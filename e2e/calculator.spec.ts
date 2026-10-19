@@ -21,25 +21,25 @@ const tier = (page: Page) => page.getByTestId('tier-badge').innerText();
 
 test.describe('verdicts', () => {
   test('a small quiet workload is told it does not need one', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 0');
     await expect(page.getByTestId('verdict')).toHaveText(/don't need a vector database yet/i);
   });
 
   test('exact-term matching is sent to keyword search', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await pick(page, 'match', 'exact');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 1');
   });
 
   test('an air-gapped deployment needs a dedicated store', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await pick(page, 'res', 'air-gapped');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
   });
 
   test('growth alone can change the verdict', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await setItems(page, 3); // 1M
     await pick(page, 'lat', '<200ms');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 0');
@@ -48,7 +48,7 @@ test.describe('verdicts', () => {
   });
 
   test('the verdict always explains itself', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await pick(page, 'tenancy', 'many tenants');
     const reasons = page.getByTestId('reasons').locator('li');
     await expect(reasons.first()).toContainText(/tenant/i);
@@ -58,7 +58,7 @@ test.describe('verdicts', () => {
 
 test.describe('shared links', () => {
   test('a copied url reproduces the exact result', async ({ page }) => {
-    await page.goto('/?utm_campaign=7wdata');
+    await page.goto('./?utm_campaign=7wdata');
     await setItems(page, 4);
     await pick(page, 'filter', 'always');
     await pick(page, 'res', 'air-gapped');
@@ -73,7 +73,7 @@ test.describe('shared links', () => {
   });
 
   test('hostile query values fall back instead of breaking', async ({ page }) => {
-    await page.goto('/?n=999&l=abc&r=mars&a.pgvectorCeiling=notanumber');
+    await page.goto('./?n=999&l=abc&r=mars&a.pgvectorCeiling=notanumber');
     await expect(page.getByTestId('tier-badge')).toBeVisible();
     await expect(page.getByTestId('verdict')).not.toBeEmpty();
   });
@@ -81,7 +81,7 @@ test.describe('shared links', () => {
 
 test.describe('assumptions are editable', () => {
   test('raising the pgvector ceiling changes the verdict', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await setItems(page, 4); // 10M
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
 
@@ -95,7 +95,7 @@ test.describe('assumptions are editable', () => {
   });
 
   test('an overridden assumption travels with the link', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.locator('.acard summary').click();
     await page.locator('input[data-assumption="pgvectorCeiling"]').fill('5000000');
     await page.waitForFunction(() => window.location.search.includes('a.pgvectorCeiling'));
@@ -110,7 +110,7 @@ test.describe('export', () => {
   }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'clipboard permissions are desktop-only here');
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/');
+    await page.goto('./');
     await pick(page, 'res', 'air-gapped');
     await page.getByTestId('copy-markdown').click();
 
@@ -133,13 +133,13 @@ test.describe('privacy claims hold at runtime', () => {
         external.push(r.url());
       }
     });
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForLoadState('networkidle');
     expect(external).toEqual([]);
   });
 
   test('sets no cookies', async ({ page, context }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.waitForLoadState('networkidle');
     expect(await context.cookies()).toEqual([]);
   });
@@ -147,19 +147,19 @@ test.describe('privacy claims hold at runtime', () => {
   test('the telemetry notice is absent until an endpoint is configured', async ({ page }) => {
     // Built without NEXT_PUBLIC_TELEMETRY_ENDPOINT, so the tool must not claim
     // to send anything.
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.getByTestId('telemetry-toggle')).toHaveCount(0);
   });
 
   test('the footer claim matches what the build actually does', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.locator('footer')).toContainText('No cookies and no third-party trackers');
   });
 });
 
 test.describe('outbound links', () => {
   test('every outbound link carries campaign attribution', async ({ page }) => {
-    await page.goto('/?utm_campaign=7wdata');
+    await page.goto('./?utm_campaign=7wdata');
 
     // This is a static export, so the shipped HTML is identical for every
     // visitor and cannot contain a per-visitor campaign. Attribution is applied
@@ -193,7 +193,7 @@ test.describe('outbound links', () => {
 test.describe('responsive', () => {
   test('a live verdict bar appears on small screens', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'small screens only');
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.locator('.minibar')).toBeVisible();
     await pick(page, 'res', 'air-gapped');
     await expect(page.locator('.minibar b')).toHaveText(/dedicated vector database/i);
@@ -201,7 +201,7 @@ test.describe('responsive', () => {
 
   test('the verdict panel is beside the controls on desktop', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'large screens only');
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.locator('.minibar')).toBeHidden();
     const controls = await page.locator('.controls').boundingBox();
     const insights = await page.locator('.insights').boundingBox();
@@ -211,7 +211,7 @@ test.describe('responsive', () => {
 
 test.describe('accessibility basics', () => {
   test('exactly one h1, and controls are labelled', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await expect(page.locator('h1')).toHaveCount(1);
     const groups = page.locator('[role="radiogroup"]');
     const count = await groups.count();
@@ -225,7 +225,7 @@ test.describe('accessibility basics', () => {
   });
 
   test('the skip link reaches the controls', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('./');
     await page.keyboard.press('Tab');
     await expect(page.locator('.skip')).toBeFocused();
   });
