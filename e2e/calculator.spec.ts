@@ -239,4 +239,15 @@ test.describe('page identity', () => {
     const res = await request.get(new URL(href!, page.url()).toString());
     expect(res.status()).toBe(200);
   });
+
+  test('social card images point at a file that exists', async ({ page, request }) => {
+    await page.goto('./');
+    for (const sel of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
+      const content = await page.locator(sel).first().getAttribute('content');
+      expect(content).toMatch(/^https:\/\//);
+      // The absolute URL targets the production host, so check its path here.
+      const res = await request.get(new URL(new URL(content!).pathname, page.url()).toString());
+      expect(res.status(), `${sel} -> ${content}`).toBe(200);
+    }
+  });
 });

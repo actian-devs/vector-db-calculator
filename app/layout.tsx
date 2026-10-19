@@ -2,9 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import { archivo, jetbrains } from './fonts';
 import './globals.css';
 
+// SITE already carries the base path, and Next resolves metadata URLs by
+// appending to metadataBase's path, so image paths below must not repeat it.
 const SITE =
   process.env.NEXT_PUBLIC_SITE_URL ?? 'https://actian-devs.github.io/vector-db-calculator';
-const base = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
@@ -17,13 +18,13 @@ export const metadata: Metadata = {
     title: 'Do you need a vector database?',
     description: 'Find out in 30 seconds. Sometimes the answer is no.',
     url: SITE,
-    images: [{ url: `${base}/og-image.png`, width: 1200, height: 630 }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Do you need a vector database?',
     description: 'Find out in 30 seconds. Sometimes the answer is no.',
-    images: [`${base}/og-image.png`],
+    images: ['/og-image.png'],
   },
   robots: { index: true, follow: true },
 };
