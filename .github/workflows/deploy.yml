@@ -22,6 +22,9 @@ env:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Job level so the build and the e2e server agree on the prefix.
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +55,6 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}
           NEXT_PUBLIC_SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
           # Unset means the tool ships inert and sends nothing. Set this in
           # repository variables only after legal sign-off, and only to an
