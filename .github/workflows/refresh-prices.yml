@@ -1,0 +1,64 @@
+name: Refresh memory prices
+
+# Weekly: fetch AWS and GCP on-demand list prices, rewrite
+# data/memory-prices.json and open a pull request for a person to review.
+# Nothing deploys until that pull request is merged. A source that fails keeps
+# its last good entry; a move of more than 15% is flagged in the PR body.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-prices
+  cancel-in-progress: false
+
+env:
+  BRANCH: bot/refresh-memory-prices
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No npm install: the script has no dependencies.
+      - name: Fetch prices
+        run: node scripts/refresh-prices.mjs
+        env:
+          PR_BODY_FILE: ${{ runner.temp }}/prices-pr.md
+
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- data/memory-prices.json; then
+            echo "No change to data/memory-prices.json."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$BRANCH"
+          git add data/memory-prices.json
+          git commit -m "chore: refresh memory prices $(date -u +%F)"
+          git push --force origin "$BRANCH"
+
+          title="Refresh memory prices $(date -u +%F)"
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body-file "$RUNNER_TEMP/prices-pr.md"
+            echo "Updated PR #$existing"
+          elif ! gh pr create --base main --head "$BRANCH" --title "$title" --body-file "$RUNNER_TEMP/prices-pr.md"; then
+            echo "::error::Could not open the pull request. Enable Settings > Actions > General > Workflow permissions > 'Allow GitHub Actions to create and approve pull requests', or open it by hand: https://github.com/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
+            exit 1
+          fi
