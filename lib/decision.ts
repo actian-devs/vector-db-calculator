@@ -93,7 +93,7 @@ function considerationsFor(w: Workload, items12: number, a: Assumptions): Consid
       id: 'churn',
       text: 'The data changes constantly, with updates and deletes.',
       handledBy:
-        'HNSW on pgvector accepts updates. Watch index bloat and vacuum behaviour under sustained churn rather than assuming it will not work.',
+        'HNSW on pgvector accepts updates. Watch index bloat and vacuum behavior under sustained churn rather than assuming it will not work.',
     });
   }
   if (w.residency === 'airgapped') {
@@ -122,6 +122,9 @@ function considerationsFor(w: Workload, items12: number, a: Assumptions): Consid
   }
   return out;
 }
+
+/** Considerations that are shown but never counted toward stacked demands. */
+const NOT_STACKABLE: ReadonlySet<string> = new Set(['airgapped', 'filtering']);
 
 export function decide(w: Workload, a: Assumptions): Decision {
   const items12 = itemsAfterGrowth(w);
@@ -173,12 +176,15 @@ export function decide(w: Workload, a: Assumptions): Decision {
   // Several operational demands at once, on a workload already past a flat scan,
   // is a different proposition from any one of them alone. Someone already
   // running Postgres has a standing reason to stay, so the bar is higher.
+  // Air-gapped is excluded because it is never a reason at any scale (hard rule
+  // 7), and filtering because it already escalates on its own above.
+  const stacked = considerations.filter((c) => !NOT_STACKABLE.has(c.id));
   const bar = w.postgres ? 3 : 2;
-  if (considerations.length >= bar && items12 > flat) {
+  if (stacked.length >= bar && items12 > flat) {
     reasons.push(
       reason(
         'stacked-demands',
-        `${considerations.length} operational demands stack on this workload at ${compactItems(items12)} items, ` +
+        `${stacked.length} operational demands stack on this workload at ${compactItems(items12)} items, ` +
           (w.postgres
             ? 'which is enough to outweigh staying on the Postgres you already run'
             : 'and you would be standing up a new system either way'),

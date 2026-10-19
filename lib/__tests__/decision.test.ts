@@ -68,6 +68,49 @@ describe('review findings stay fixed', () => {
 });
 
 /**
+ * Hard rule 7: air-gapped is never a reason at any scale. It must not sneak in
+ * through the stacked-demands count either, since the consideration's own prose
+ * says the network boundary is not an argument for any particular database.
+ * 1M x 1536 at 200ms sits past the flat ceiling and under the pgvector ceiling,
+ * which is exactly where stacking decides the tier.
+ */
+describe('air-gapped never counts toward escalation', () => {
+  const stackable = { items: 1_000_000, dims: 1536, latencyMs: 200 } as const;
+
+  it('does not escalate air-gapped plus one other demand', () => {
+    expect(
+      tierOf({ ...stackable, residency: 'airgapped', matching: 'hybrid', postgres: false }),
+    ).not.toBe(3);
+  });
+
+  it('does not let air-gapped tip an existing Postgres user over the bar', () => {
+    expect(
+      tierOf({
+        ...stackable,
+        residency: 'airgapped',
+        matching: 'hybrid',
+        tenancy: 'many',
+        postgres: true,
+      }),
+    ).not.toBe(3);
+  });
+
+  it('still escalates when real demands stack', () => {
+    expect(tierOf({ ...stackable, matching: 'hybrid', tenancy: 'many', postgres: false })).toBe(3);
+  });
+
+  it('never names air-gapped in the reasons for a tier 3 verdict', () => {
+    const d = decide(
+      w({ ...stackable, residency: 'airgapped', matching: 'hybrid', tenancy: 'many', postgres: false }),
+      DEFAULT_ASSUMPTIONS,
+    );
+    expect(d.tier).toBe(3);
+    const stacked = d.reasons.find((r) => r.id === 'stacked-demands');
+    expect(stacked?.text).toMatch(/^2 operational demands/);
+  });
+});
+
+/**
  * No single capability forces a dedicated store. Postgres does all of these,
  * and treating any of them as an automatic escalation is vendor bias rather
  * than engineering.
