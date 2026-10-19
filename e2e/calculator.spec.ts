@@ -230,3 +230,13 @@ test.describe('accessibility basics', () => {
     await expect(page.locator('.skip')).toBeFocused();
   });
 });
+
+test.describe('page identity', () => {
+  test('declares a favicon that resolves under the base path', async ({ page, request }) => {
+    await page.goto('./');
+    const href = await page.locator('link[rel="icon"]').first().getAttribute('href');
+    expect(href).toBeTruthy();
+    const res = await request.get(new URL(href!, page.url()).toString());
+    expect(res.status()).toBe(200);
+  });
+});
