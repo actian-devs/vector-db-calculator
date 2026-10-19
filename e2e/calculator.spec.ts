@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 /**
@@ -325,4 +327,95 @@ test.describe('gauge legend', () => {
       if (range.endsWith('+')) expect(1_000_000).toBeGreaterThan(bound);
     });
   }
+});
+
+test.describe('memory cost estimate', () => {
+  const pricedAt = (
+    JSON.parse(readFileSync(join(__dirname, '..', 'data', 'memory-prices.json'), 'utf8')) as {
+      pricedAt: string;
+    }
+  ).pricedAt;
+
+  for (const [label, query, tierText] of [
+    ['tier 0', './', 'TIER 0'],
+    ['tier 2', './?n=3&g=1&l=200&d=3072', 'TIER 2'],
+    ['tier 3', './?n=5&g=1', 'TIER 3'],
+  ] as const) {
+    test(`appears the same way for ${label}`, async ({ page }) => {
+      await page.goto(query);
+      await expect(page.getByTestId('tier-badge')).toHaveText(tierText);
+      await expect(page.getByTestId('cost-today')).toBeVisible();
+      await expect(page.getByTestId('cost-note')).toContainText('Not a quote');
+      await expect(page.getByTestId('cost-chart')).toBeVisible();
+    });
+  }
+
+  test('is absent for tier 1 and says why', async ({ page }) => {
+    await page.goto('./?m=exact');
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 1');
+    await expect(page.getByTestId('cost-none')).toContainText('Full-text indexes are small');
+    await expect(page.getByTestId('cost-today')).toHaveCount(0);
+    await expect(page.getByTestId('cost-chart')).toHaveCount(0);
+  });
+
+  test('editing the price changes the figure and travels with the link', async ({ page }) => {
+    await page.goto('./?n=3&g=1');
+    const before = await page.getByTestId('cost-mid-today').innerText();
+    await page.locator('.acard summary').click();
+    const input = page.locator('input[data-assumption="priceHighPerGbMonth"]');
+    await input.fill('20');
+    await input.dispatchEvent('change');
+    await expect(page.getByTestId('cost-mid-today')).not.toHaveText(before);
+    await page.waitForFunction(() => window.location.search.includes('a.priceHighPerGbMonth=20'));
+    const after = await page.getByTestId('cost-mid-today').innerText();
+    await page.goto(page.url());
+    await expect(page.getByTestId('cost-mid-today')).toHaveText(after);
+  });
+
+  test('the chart tooltip at your workload matches the card', async ({ page }) => {
+    await page.goto('./?n=3&g=10');
+    await page.locator('.chart-wrap svg').focus();
+    await expect(page.getByTestId('chart-tip')).toContainText('Your workload');
+    await expect(page.getByTestId('tip-mid')).toHaveText(
+      await page.getByTestId('cost-mid-next').innerText(),
+    );
+  });
+
+  test('has a text table of the same data for screen readers', async ({ page }) => {
+    await page.goto('./');
+    const rows = page.getByTestId('cost-chart-table').locator('tbody tr');
+    await expect(rows).toHaveCount(7);
+  });
+
+  test('marks both ceilings when they fall inside the range', async ({ page }) => {
+    await page.goto('./?d=1536');
+    await expect(page.getByTestId('marker-flat')).toHaveCount(1);
+    await expect(page.getByTestId('marker-pg')).toHaveCount(1);
+  });
+
+  test('warns when the price file is more than 60 days old', async ({ page }) => {
+    const old = new Date(`${pricedAt}T12:00:00Z`);
+    old.setUTCDate(old.getUTCDate() + 61);
+    await page.clock.setFixedTime(old);
+    await page.goto('./');
+    await expect(page.getByTestId('cost-stale')).toBeVisible();
+  });
+
+  test('shows no warning while the price file is fresh', async ({ page }) => {
+    const fresh = new Date(`${pricedAt}T12:00:00Z`);
+    fresh.setUTCDate(fresh.getUTCDate() + 5);
+    await page.clock.setFixedTime(fresh);
+    await page.goto('./');
+    await expect(page.getByTestId('cost-note')).toBeVisible();
+    await expect(page.getByTestId('cost-stale')).toHaveCount(0);
+  });
+
+  test('fits a 390px screen without sideways scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('./?n=3&g=10');
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(overflow).toBe(false);
+  });
 });

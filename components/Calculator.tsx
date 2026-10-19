@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
-import { footprint, itemsAfterGrowth } from '@/lib/compute';
-import { decide, TIER_COPY } from '@/lib/decision';
+import { footprint, itemsAfterGrowth, memoryCost } from '@/lib/compute';
+import { decide, hasMemoryEstimate, TIER_COPY } from '@/lib/decision';
 import { fullItems } from '@/lib/format';
 import { readCampaign, readsFor, withUtm, LINKS } from '@/lib/links';
 import { recordEvaluation } from '@/lib/telemetry';
@@ -17,8 +17,10 @@ import {
   subscribeToSearch,
 } from '@/lib/urlStore';
 import { AssumptionsPanel } from './AssumptionsPanel';
+import { CostChart } from './CostChart';
 import { CostTable } from './CostTable';
 import { ExportPanel } from './ExportPanel';
+import { InfraCostCard } from './InfraCostCard';
 import { ScaleGauge } from './ScaleGauge';
 import { Segmented } from './Segmented';
 import { TelemetryNotice } from './TelemetryNotice';
@@ -73,6 +75,16 @@ export function Calculator() {
   const next = useMemo(
     () => footprint(itemsAfterGrowth(workload), workload.dims, assumptions),
     [workload, assumptions],
+  );
+  // Same estimate for tiers 0, 2 and 3; none for tier 1, a small full-text index.
+  const priced = hasMemoryEstimate(decision.tier);
+  const costToday = useMemo(
+    () => (priced ? memoryCost(workload.items, workload.dims, assumptions) : null),
+    [priced, workload.items, workload.dims, assumptions],
+  );
+  const costNext = useMemo(
+    () => (priced ? memoryCost(decision.items12, workload.dims, assumptions) : null),
+    [priced, decision.items12, workload.dims, assumptions],
   );
 
   useEffect(() => {
@@ -399,6 +411,18 @@ export function Calculator() {
             />
 
             <CostTable today={today} next={next} growth={workload.growth} />
+
+            <InfraCostCard today={costToday} next={costNext} assumptions={assumptions} />
+
+            {priced ? (
+              <CostChart
+                dims={workload.dims}
+                assumptions={assumptions}
+                items12={decision.items12}
+                flatCeiling={decision.flatCeiling}
+                pgvectorCeiling={decision.pgvectorCeiling}
+              />
+            ) : null}
 
             <div className="card">
               <div className="card-h">WHY YOU LANDED HERE</div>

@@ -339,3 +339,61 @@ footer a { color: var(--dim); }
 .considerations li { display: grid; gap: 5px; }
 .considerations b { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.4; }
 .considerations span { font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+
+/* ---------- memory cost card ---------- */
+.cost-t { width: 100%; border-collapse: collapse; }
+.cost-t thead th {
+  font-family: var(--mono); font-size: 12.5px; font-weight: 500; color: var(--dim);
+  text-align: right; padding: 0 0 12px; letter-spacing: 0.03em;
+}
+.cost-t thead th:first-child { text-align: left; }
+.cost-t tbody td {
+  border-top: 1px solid var(--line-2); padding: 13px 0; font-family: var(--mono);
+  font-variant-numeric: tabular-nums; font-size: 14.5px; text-align: right; white-space: nowrap;
+}
+.cost-t tbody td:first-child {
+  text-align: left; font-family: var(--sans); font-size: 15px; color: var(--ink-2);
+  white-space: normal; padding-right: 12px;
+}
+.cost-range em { font-style: normal; color: var(--dim); font-size: 0.86em; }
+.cost-note { margin-top: 16px; }
+.cost-none { font-size: 15px; color: var(--ink-2); line-height: 1.5; }
+.cost-stale {
+  margin-top: 12px; font-size: 14px; line-height: 1.5; color: var(--amber);
+  background: var(--amber-soft); border-radius: 8px; padding: 10px 12px;
+}
+
+/* ---------- cost as you scale ---------- */
+.chcard .ch { font-size: 15.5px; font-weight: 600; margin-bottom: 4px; }
+.chcard .cs { font-family: var(--mono); font-size: 12.5px; color: var(--dim); margin-bottom: 14px; }
+.chart-wrap { position: relative; width: 100%; }
+.chart-wrap svg { display: block; overflow: visible; }
+.chart-wrap svg:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
+.ch-grid { stroke: var(--line); stroke-width: 1; }
+.ch-tick { font-family: var(--mono); font-size: 12px; fill: var(--dim); font-variant-numeric: tabular-nums; }
+.ch-band { fill: var(--blue); fill-opacity: 0.12; stroke: none; }
+.ch-mid { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ch-marker { stroke: var(--ink-2); stroke-width: 1; stroke-opacity: 0.45; stroke-dasharray: 3 3; }
+.ch-mlabel { font-family: var(--mono); font-size: 12px; fill: var(--ink-2); }
+.ch-cross { stroke: var(--ink-2); stroke-width: 1; stroke-opacity: 0.6; }
+.ch-you { fill: var(--blue); stroke: var(--card); stroke-width: 2; }
+.ch-ylabel { font-size: 13px; font-weight: 600; fill: var(--ink); }
+.ch-hit { fill: transparent; cursor: crosshair; touch-action: pan-y; }
+.ch-tip {
+  position: absolute; pointer-events: none;
+  background: var(--card); border: 1px solid var(--line); border-radius: 9px;
+  box-shadow: 0 4px 14px -6px rgba(21, 24, 30, 0.25);
+  padding: 10px 12px; display: grid; gap: 4px; min-width: 150px;
+  font-size: 13px; color: var(--ink-2); line-height: 1.35;
+}
+.ch-tip b { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--ink); font-weight: 700; }
+.ch-tip-h { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+
+@media (max-width: 560px) {
+  /* The cost ranges stack "to high" under the low figure so two columns fit. */
+  .cost-t tbody td { white-space: normal; font-size: 14px; }
+  .cost-t tbody td:first-child { font-size: 14px; }
+  .cost-range .hi { display: block; }
+}
+.ch-key { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; margin: 0 0 12px; }
+.ch-key i { flex: none; width: 16px; height: 2px; border-radius: 1px; background: var(--blue); }
