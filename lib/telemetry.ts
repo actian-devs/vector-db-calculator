@@ -1,4 +1,4 @@
-import { changedAssumptions } from './assumptions';
+import { changedAssumptions, COST_ASSUMPTIONS } from './assumptions';
 import type { Assumptions, Decision, Workload } from './types';
 
 /**
@@ -51,7 +51,7 @@ export interface TelemetryPayload {
   workload: Workload;
   tier: number;
   itemsAfterGrowth: number;
-  /** Which assumptions the user overrode, by name. Never the values. */
+  /** Which model assumptions the user overrode, by name. Never values, never cost inputs. */
   assumptionsChanged: string[];
   campaign: string;
 }
@@ -136,7 +136,8 @@ export function buildPayload(
     workload,
     tier: decision.tier,
     itemsAfterGrowth: decision.items12,
-    assumptionsChanged: changedAssumptions(assumptions),
+    // Cost inputs are never sent, not even their names.
+    assumptionsChanged: changedAssumptions(assumptions).filter((k) => !COST_ASSUMPTIONS.has(k)),
     campaign,
   };
 }

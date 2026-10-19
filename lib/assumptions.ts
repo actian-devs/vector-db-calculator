@@ -1,3 +1,4 @@
+import { DEFAULT_PRICE_RANGE } from './prices';
 import type { Assumptions } from './types';
 
 /**
@@ -29,13 +30,18 @@ export const DEFAULT_ASSUMPTIONS: Assumptions = {
   bytesPerComponentInt8: 1,
   gflopsLow: 1,
   gflopsHigh: 10,
+  /** Run the host at roughly three quarters full rather than at the limit. */
+  headroom: 1.3,
+  /** From data/memory-prices.json, converted from per GiB to per decimal GB. */
+  priceLowPerGbMonth: DEFAULT_PRICE_RANGE.low,
+  priceHighPerGbMonth: DEFAULT_PRICE_RANGE.high,
 };
 
 export interface AssumptionField {
   key: keyof Assumptions;
   label: string;
   help: string;
-  scale: 'items' | 'gb' | 'gflops' | 'factor';
+  scale: 'items' | 'gb' | 'gflops' | 'factor' | 'usd';
   min: number;
   max: number;
   step: number;
@@ -54,7 +60,7 @@ export const ASSUMPTION_FIELDS: AssumptionField[] = [
   {
     key: 'hnswMemoryOverhead',
     label: 'HNSW graph overhead',
-    help: 'Multiplier on raw vector size to account for the navigable graph. Raise it for higher m.',
+    help: 'Estimate. Multiplier on raw vector size to account for the navigable graph. Raise it for higher m.',
     scale: 'factor',
     min: 1,
     max: 5,
@@ -87,6 +93,33 @@ export const ASSUMPTION_FIELDS: AssumptionField[] = [
     max: 10_000,
     step: 1,
   },
+  {
+    key: 'headroom',
+    label: 'Memory headroom',
+    help: 'Estimate. Multiplier on the index size so the host is not run at its limit. Prices the memory, does not change the verdict.',
+    scale: 'factor',
+    min: 1,
+    max: 4,
+    step: 0.1,
+  },
+  {
+    key: 'priceLowPerGbMonth',
+    label: 'Memory price, low (USD per GB-month)',
+    help: 'Per decimal GB (10^9 bytes). Default is the cheaper of the on-demand list prices in the data file, converted from per GiB.',
+    scale: 'usd',
+    min: 0.01,
+    max: 100,
+    step: 0.01,
+  },
+  {
+    key: 'priceHighPerGbMonth',
+    label: 'Memory price, high (USD per GB-month)',
+    help: 'Per decimal GB (10^9 bytes). Default is the dearer of the on-demand list prices in the data file, converted from per GiB.',
+    scale: 'usd',
+    min: 0.01,
+    max: 100,
+    step: 0.01,
+  },
 ];
 
 export function isCustomised(a: Assumptions): boolean {
@@ -111,3 +144,13 @@ export function clampAssumption(
   if (!field) return value;
   return Math.min(field.max, Math.max(field.min, value));
 }
+
+/**
+ * Assumptions that only price the memory. They never change the verdict, and
+ * telemetry leaves them out entirely, by name as well as by value.
+ */
+export const COST_ASSUMPTIONS: ReadonlySet<keyof Assumptions> = new Set([
+  'headroom',
+  'priceLowPerGbMonth',
+  'priceHighPerGbMonth',
+]);

@@ -123,6 +123,15 @@ function considerationsFor(w: Workload, items12: number, a: Assumptions): Consid
   return out;
 }
 
+/**
+ * Tiers 0, 2 and 3 get the same memory cost estimate, shown the same way, so it
+ * never tilts toward the paid tier. Tier 1 is a full-text index, which is small
+ * and not sized by this model.
+ */
+export function hasMemoryEstimate(tier: Tier): boolean {
+  return tier !== 1;
+}
+
 /** Considerations that are shown but never counted toward stacked demands. */
 const NOT_STACKABLE: ReadonlySet<string> = new Set(['airgapped', 'edge', 'filtering']);
 

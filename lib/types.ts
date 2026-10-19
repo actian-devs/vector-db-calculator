@@ -56,6 +56,11 @@ export interface Assumptions {
   /** Effective single-threaded throughput range used for the scan estimate. */
   gflopsLow: number;
   gflopsHigh: number;
+  /** Spare memory on top of the index so the host is not run at 100%. Rule of thumb. */
+  headroom: number;
+  /** Memory price range, USD per decimal GB (10^9 bytes) per month. */
+  priceLowPerGbMonth: number;
+  priceHighPerGbMonth: number;
 }
 
 export type Tier = 0 | 1 | 2 | 3;

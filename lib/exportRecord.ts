@@ -1,7 +1,8 @@
 import { changedAssumptions, DEFAULT_ASSUMPTIONS } from './assumptions';
-import { footprint, itemsAfterGrowth } from './compute';
-import { TIER_COPY } from './decision';
-import { bytesLabel, compactItems, fullItems, scanLabel } from './format';
+import { footprint, itemsAfterGrowth, memoryCost, type MemoryCost } from './compute';
+import { hasMemoryEstimate, TIER_COPY } from './decision';
+import { bytesLabel, compactItems, fullItems, gbLabel, scanLabel, usd } from './format';
+import { PRICES } from './prices';
 import type { Assumptions, Decision, Workload } from './types';
 
 /**
@@ -116,6 +117,25 @@ export function decisionRecordMarkdown(
   );
   lines.push('');
 
+  lines.push(`## Memory cost estimate`);
+  lines.push('');
+  const est = costEstimate(w, a, d);
+  if (!est) {
+    lines.push('Full-text indexes are small, so there is no memory estimate for this verdict.');
+  } else {
+    const range = (c: MemoryCost['monthly']) => `${usd(c.low)} to ${usd(c.high)} (mid ${usd(c.mid)})`;
+    lines.push('| Measure | Today | In 12 months |');
+    lines.push('| --- | --- | --- |');
+    lines.push(`| Memory needed | ${gbLabel(est.today.memoryGb)} | ${gbLabel(est.inTwelveMonths.memoryGb)} |`);
+    lines.push(`| Monthly cost | ${range(est.today.monthly)} | ${range(est.inTwelveMonths.monthly)} |`);
+    lines.push(`| int8 vectors only | ${range(est.today.int8Monthly)} | ${range(est.inTwelveMonths.int8Monthly)} |`);
+    lines.push('');
+    lines.push(
+      `Hardware memory only, priced ${est.pricedAt} from on-demand list prices in US regions, per decimal GB (10^9 bytes) per month. Not a quote. Sources: ${est.sources.join(', ')}.`,
+    );
+  }
+  lines.push('');
+
   lines.push(`## Assumptions used`);
   lines.push('');
   if (overrides.length === 0) {
@@ -128,7 +148,8 @@ export function decisionRecordMarkdown(
   lines.push('| --- | --- | --- |');
   (Object.keys(DEFAULT_ASSUMPTIONS) as (keyof Assumptions)[]).forEach((k) => {
     const changed = a[k] !== DEFAULT_ASSUMPTIONS[k];
-    lines.push(`| ${k} | ${fullItems(a[k])} | ${changed ? 'yes' : 'no'} |`);
+    const value = Number.isInteger(a[k]) ? fullItems(a[k]) : String(a[k]);
+    lines.push(`| ${k} | ${value} | ${changed ? 'yes' : 'no'} |`);
   });
   lines.push('');
 
@@ -144,6 +165,26 @@ export function decisionRecordMarkdown(
   return lines.join('\n');
 }
 
+export interface CostEstimate {
+  units: string;
+  pricedAt: string;
+  sources: string[];
+  today: MemoryCost;
+  inTwelveMonths: MemoryCost;
+}
+
+/** Null for tier 1, matching the page. */
+export function costEstimate(w: Workload, a: Assumptions, d: Decision): CostEstimate | null {
+  if (!hasMemoryEstimate(d.tier)) return null;
+  return {
+    units: 'USD per month; memory in decimal GB (10^9 bytes)',
+    pricedAt: PRICES.pricedAt,
+    sources: PRICES.entries.map((e) => e.sourceUrl),
+    today: memoryCost(w.items, w.dims, a),
+    inTwelveMonths: memoryCost(d.items12, w.dims, a),
+  };
+}
+
 export interface DecisionRecordJson {
   generatedAt: string;
   verdict: { tier: number; headline: string };
@@ -157,6 +198,7 @@ export interface DecisionRecordJson {
     today: ReturnType<typeof footprint>;
     inTwelveMonths: ReturnType<typeof footprint>;
   };
+  costEstimate: CostEstimate | null;
   shareUrl: string;
 }
 
@@ -180,6 +222,7 @@ export function decisionRecordJson(
       today: footprint(w.items, w.dims, a),
       inTwelveMonths: footprint(itemsAfterGrowth(w), w.dims, a),
     },
+    costEstimate: costEstimate(w, a, d),
     shareUrl,
   };
 }

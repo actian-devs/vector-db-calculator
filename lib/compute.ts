@@ -79,3 +79,79 @@ export function logPosition(items: number): number {
   const p = (Math.log10(items) - 3) / 5;
   return Math.min(1, Math.max(0, p));
 }
+
+/* ---------- infrastructure cost ---------- */
+
+/** A monthly cost range in USD. `mid` is the midpoint of low and high. */
+export interface CostRange {
+  low: number;
+  mid: number;
+  high: number;
+}
+
+export interface MemoryCost {
+  /** Memory the workload needs, decimal GB: index plus graph plus headroom. */
+  memoryGb: number;
+  monthly: CostRange;
+  /** The int8 vector figure from the cost table, priced as shown (vectors only). */
+  int8Gb: number;
+  int8Monthly: CostRange;
+}
+
+/** Price inputs in order, whichever way round the user typed them. */
+function priceBounds(a: Assumptions): { low: number; high: number } {
+  return {
+    low: Math.min(a.priceLowPerGbMonth, a.priceHighPerGbMonth),
+    high: Math.max(a.priceLowPerGbMonth, a.priceHighPerGbMonth),
+  };
+}
+
+/**
+ * Memory an HNSW deployment of this size needs, in decimal GB.
+ * items x dims x 4 bytes x graph overhead x headroom. Both multipliers are
+ * rules of thumb and are labelled as estimates in the UI.
+ */
+export function memoryNeededGb(items: number, dims: number, a: Assumptions): number {
+  return (
+    (items * dims * a.bytesPerComponentF32 * a.hnswMemoryOverhead * a.headroom) / BYTES_PER_GB
+  );
+}
+
+/** Monthly cost of `gb` decimal gigabytes at the assumed price range. */
+export function costRange(gb: number, a: Assumptions): CostRange {
+  const { low, high } = priceBounds(a);
+  return { low: gb * low, mid: (gb * (low + high)) / 2, high: gb * high };
+}
+
+export function memoryCost(items: number, dims: number, a: Assumptions): MemoryCost {
+  const memoryGb = memoryNeededGb(items, dims, a);
+  const int8Gb = (items * dims * a.bytesPerComponentInt8) / BYTES_PER_GB;
+  return {
+    memoryGb,
+    monthly: costRange(memoryGb, a),
+    int8Gb,
+    int8Monthly: costRange(int8Gb, a),
+  };
+}
+
+export interface CostPoint extends CostRange {
+  items: number;
+}
+
+/** The chart's x domain, matching the gauge: 1K to 100M items. */
+export const COST_CHART_MIN_ITEMS = 1e3;
+export const COST_CHART_MAX_ITEMS = 1e8;
+
+/**
+ * Cost computed continuously across the chart's range, log-spaced, from the
+ * same functions as the card. The chart never draws anything this did not
+ * compute, so the band and the table cannot disagree.
+ */
+export function costSeries(dims: number, a: Assumptions, points = 121): CostPoint[] {
+  const lo = Math.log10(COST_CHART_MIN_ITEMS);
+  const hi = Math.log10(COST_CHART_MAX_ITEMS);
+  return Array.from({ length: points }, (_, i) => {
+    const items = 10 ** (lo + ((hi - lo) * i) / (points - 1));
+    return { items, ...costRange(memoryNeededGb(items, dims, a), a) };
+  });
+}

@@ -17,13 +17,17 @@ export function fullItems(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
 
-/** Returns the number and its unit separately so the unit can be styled down. */
+/**
+ * Returns the number and its unit separately so the unit can be styled down.
+ * Decimal units (1 GB = 10^9 bytes), the same unit the memory price is quoted
+ * in, so a GB in the cost table and a GB on the cost card are the same size.
+ */
 export function bytes(b: number): { value: string; unit: string } {
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   let v = b;
   let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
+  while (v >= 1000 && i < units.length - 1) {
+    v /= 1000;
     i += 1;
   }
   return {
@@ -56,4 +60,24 @@ export function scanRange(lowMs: number, highMs: number): { value: string; unit:
 export function scanLabel(lowMs: number, highMs: number): string {
   const { value, unit } = scanRange(lowMs, highMs);
   return `${value} ${unit}`;
+}
+
+/** Decimal gigabytes, for example "12 GB" or "1,200 GB". */
+export function gbLabel(gb: number): string {
+  if (gb < 10) return `${gb.toFixed(1).replace(/\.0$/, '')} GB`;
+  return `${Math.round(gb).toLocaleString('en-US')} GB`;
+}
+
+/** A monthly dollar figure. Cents only below $10, thousands separators above. */
+export function usd(n: number): string {
+  if (n < 10) return `$${n.toFixed(2)}`;
+  return `$${Math.round(n).toLocaleString('en-US')}`;
+}
+
+/** Compact dollars for tight axes, for example "$1.2K" or "$45K". */
+export function usdCompact(n: number): string {
+  if (n < 1) return `$${n.toFixed(2)}`;
+  if (n < 1e3) return `$${Math.round(n)}`;
+  if (n < 1e6) return `$${trim(n / 1e3, n / 1e3 < 10)}K`;
+  return `$${trim(n / 1e6, n / 1e6 < 10)}M`;
 }

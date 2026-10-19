@@ -68,13 +68,13 @@ export function AssumptionsPanel({ assumptions, onChange }: Props) {
                 inputMode="decimal"
                 min={field.min}
                 max={field.max}
-                step={field.scale === 'gflops' ? 0.1 : 1000}
+                step={field.step}
                 value={assumptions[field.key]}
                 onChange={(e) => update(field.key, e.target.value)}
                 aria-describedby={`a-${field.key}-help`}
               />
               <span id={`a-${field.key}-help`} className="visually-hidden">
-                {field.help} Default {fullItems(DEFAULT_ASSUMPTIONS[field.key])}.
+                {field.help} Default {field.scale === 'usd' ? `$${DEFAULT_ASSUMPTIONS[field.key].toFixed(2)}` : fullItems(DEFAULT_ASSUMPTIONS[field.key])}.
               </span>
             </div>
           );

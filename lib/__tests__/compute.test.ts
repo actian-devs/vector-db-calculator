@@ -60,7 +60,7 @@ describe('formatting', () => {
   });
 
   it('splits bytes from their unit', () => {
-    expect(bytes(1024)).toEqual({ value: '1.0', unit: 'KB' });
+    expect(bytes(1000)).toEqual({ value: '1.0', unit: 'KB' });
     expect(bytes(6_144_000_000).unit).toBe('GB');
   });
 
