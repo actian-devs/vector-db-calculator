@@ -249,6 +249,14 @@ test.describe('accessibility basics', () => {
 });
 
 test.describe('page identity', () => {
+  test('shows the Actian logo from the brand kit', async ({ page }) => {
+    await page.goto('./');
+    const logo = page.locator('.rail img.logo');
+    await expect(logo).toHaveAttribute('alt', 'Actian');
+    // naturalWidth is 0 when the file 404s, which is how a missing base path shows up.
+    expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  });
+
   test('declares a favicon that resolves under the base path', async ({ page, request }) => {
     await page.goto('./');
     const href = await page.locator('link[rel="icon"]').first().getAttribute('href');
@@ -282,5 +290,16 @@ test.describe('considerations card', () => {
     await expect(page.getByTestId('tier-badge')).not.toHaveText('TIER 3');
     await page.locator('.ccard summary').click();
     await expect(page.locator('.c-intro')).toContainText('did not decide the verdict');
+  });
+});
+
+test.describe('gauge legend', () => {
+  test('derives its ranges instead of printing a fixed 1M', async ({ page }) => {
+    await page.goto('./?d=1536');
+    const pg = page.locator('.glegend .row[data-t="2"] em');
+    const at1536 = await pg.innerText();
+    await page.goto('./?d=384');
+    await expect(pg).not.toHaveText(at1536);
+    await expect(page.locator('.glegend')).not.toContainText('to 1M');
   });
 });

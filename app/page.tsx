@@ -1,6 +1,8 @@
 import { Calculator } from '@/components/Calculator';
 import { LINKS } from '@/lib/links';
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
 const HUB: { heading: string; links: { title: string; href: string }[] }[] = [
   {
     heading: "when you don't need one",
@@ -34,12 +36,19 @@ export default function Page() {
       <div className="rail">
         <div className="in">
           <span className="brand">
-            <span className="mark" aria-hidden="true">
-              <i />
-              <i />
-              <i />
+            {/* Official horizontal logo from the Actian brand kit. A plain img
+                is not base-path aware in a static export, so prefix it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              className="logo"
+              src={`${BASE}/actian-logo.svg`}
+              alt="Actian"
+              width={146}
+              height={34}
+            />
+            <span className="product">
+              VectorAI DB <span>&nbsp;/ sizing tool</span>
             </span>
-            Actian VectorAI DB <span>&nbsp;/ sizing tool</span>
           </span>
           <span className="tagline">no third-party trackers</span>
         </div>
