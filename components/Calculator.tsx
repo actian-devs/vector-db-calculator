@@ -394,6 +394,8 @@ export function Calculator() {
               items={decision.items12}
               tier={decision.tier}
               growth={workload.growth}
+              flatCeiling={decision.flatCeiling}
+              pgvectorCeiling={decision.pgvectorCeiling}
             />
 
             <CostTable today={today} next={next} growth={workload.growth} />

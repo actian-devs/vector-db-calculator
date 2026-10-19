@@ -8,24 +8,34 @@ import { useAnimatedNumber } from './useAnimatedNumber';
 
 const ARC_PATH = 'M 16 100 A 77 77 0 0 1 170 100';
 
-const LEGEND: { tier: Tier; label: string; range: string }[] = [
-  { tier: 0, label: 'Flat file', range: 'to 1M' },
-  { tier: 1, label: 'Keyword index', range: 'any size' },
-  { tier: 2, label: 'pgvector', range: 'to 1M' },
-  { tier: 3, label: 'Dedicated store', range: '1M+' },
-];
+/**
+ * Ranges come from the derived ceilings for this workload, never fixed counts
+ * (hard rule 6), so the legend agrees with the verdict and the cost table.
+ */
+function legend(flat: number, pg: number): { tier: Tier; label: string; range: string }[] {
+  return [
+    { tier: 0, label: 'Flat file', range: `to ${compactItems(flat)}` },
+    { tier: 1, label: 'Keyword index', range: 'any size' },
+    { tier: 2, label: 'pgvector', range: `to ${compactItems(pg)}` },
+    { tier: 3, label: 'Dedicated store', range: `${compactItems(pg)}+` },
+  ];
+}
 
 interface Props {
   items: number;
   tier: Tier;
   growth: number;
+  /** Derived flat-scan ceiling for this workload. */
+  flatCeiling: number;
+  /** Derived pgvector ceiling for this workload. */
+  pgvectorCeiling: number;
 }
 
 /**
  * Semicircular gauge showing where the twelve-month item count sits on the
  * 1K to 100M log scale, with the four tiers as a legend.
  */
-export function ScaleGauge({ items, tier, growth }: Props) {
+export function ScaleGauge({ items, tier, growth, flatCeiling, pgvectorCeiling }: Props) {
   const pathRef = useRef<SVGPathElement>(null);
   const [arcLength, setArcLength] = useState(0);
   const animated = useAnimatedNumber(items);
@@ -61,7 +71,7 @@ export function ScaleGauge({ items, tier, growth }: Props) {
           </div>
         </div>
         <div className="glegend">
-          {LEGEND.map((l) => (
+          {legend(flatCeiling, pgvectorCeiling).map((l) => (
             <div
               key={l.tier}
               className={l.tier === tier ? 'row on' : 'row'}
