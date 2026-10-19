@@ -436,8 +436,9 @@ export function Calculator() {
                 </summary>
 
                 <p className="c-intro">
-                  These did not decide the verdict. Postgres can meet them, and it is worth
-                  knowing how before you reach for another system.
+                  {decision.reasons.some((r) => r.id === 'stacked-demands')
+                    ? 'Postgres can meet each of these on its own. It is the number of them landing on one store at this size that tipped the verdict.'
+                    : 'These did not decide the verdict. Postgres can meet them, and it is worth knowing how before you reach for another system.'}
                 </p>
                 <ul className="considerations" data-testid="considerations">
                   {decision.considerations.map((c) => (
@@ -498,7 +499,7 @@ export function Calculator() {
                       Try Community Edition free
                     </a>
                     <p className="fine">
-                      Community Edition holds up to 5,000 vectors without a licence, enough to
+                      Community Edition holds up to 5,000 vectors without a license, enough to
                       try it against a sample of your data.
                     </p>
                   </>

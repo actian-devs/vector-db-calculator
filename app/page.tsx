@@ -60,7 +60,7 @@ export default function Page() {
             </p>
             <p>
               <b>The tier break points are a rough guide.</b> They come from that same
-              arithmetic plus the widely observed behaviour of brute-force search and HNSW
+              arithmetic plus the widely observed behavior of brute-force search and HNSW
               indexes. They are estimates for sizing a decision, not a benchmark, and your
               hardware, dimensions and query mix will move them. Every one of them is
               editable in the assumptions panel, and whatever you set travels with the

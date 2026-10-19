@@ -268,3 +268,19 @@ test.describe('page identity', () => {
     }
   });
 });
+
+test.describe('considerations card', () => {
+  test('does not claim the demands were irrelevant when they stacked', async ({ page }) => {
+    await page.goto('./?n=3&m=hybrid&t=many&p=no');
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+    await page.locator('.ccard summary').click();
+    await expect(page.locator('.c-intro')).toContainText('tipped the verdict');
+  });
+
+  test('says they did not decide it when they did not', async ({ page }) => {
+    await page.goto('./?n=3&m=hybrid');
+    await expect(page.getByTestId('tier-badge')).not.toHaveText('TIER 3');
+    await page.locator('.ccard summary').click();
+    await expect(page.locator('.c-intro')).toContainText('did not decide the verdict');
+  });
+});
