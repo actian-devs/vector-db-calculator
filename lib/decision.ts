@@ -124,7 +124,7 @@ function considerationsFor(w: Workload, items12: number, a: Assumptions): Consid
 }
 
 /** Considerations that are shown but never counted toward stacked demands. */
-const NOT_STACKABLE: ReadonlySet<string> = new Set(['airgapped', 'filtering']);
+const NOT_STACKABLE: ReadonlySet<string> = new Set(['airgapped', 'edge', 'filtering']);
 
 export function decide(w: Workload, a: Assumptions): Decision {
   const items12 = itemsAfterGrowth(w);
@@ -176,8 +176,10 @@ export function decide(w: Workload, a: Assumptions): Decision {
   // Several operational demands at once, on a workload already past a flat scan,
   // is a different proposition from any one of them alone. Someone already
   // running Postgres has a standing reason to stay, so the bar is higher.
-  // Air-gapped is excluded because it is never a reason at any scale (hard rule
-  // 7), and filtering because it already escalates on its own above.
+  // Only hybrid, multi-tenancy, churn and heavy filtering count. Air-gapped is
+  // never a reason at any scale (hard rule 7). Edge argues for an embedded
+  // store, not a dedicated server, so it cannot push toward one. Filtering
+  // already escalates on its own above, so it is not counted twice.
   const stacked = considerations.filter((c) => !NOT_STACKABLE.has(c.id));
   const bar = w.postgres ? 3 : 2;
   if (stacked.length >= bar && items12 > flat) {

@@ -19,6 +19,13 @@ async function setItems(page: Page, stepIndex: number) {
 
 const tier = (page: Page) => page.getByTestId('tier-badge').innerText();
 
+/** Parses the legend's compact counts, for example "to 163K" or "3.5M+". */
+function parseCompact(text: string): number {
+  const m = text.match(/([\d.]+)\s*([KMB])/);
+  if (!m) return Number.NaN;
+  return Number(m[1]) * { K: 1e3, M: 1e6, B: 1e9 }[m[2] as 'K' | 'M' | 'B'];
+}
+
 test.describe('verdicts', () => {
   test('a small quiet workload is told it does not need one', async ({ page }) => {
     await page.goto('./');
@@ -302,4 +309,20 @@ test.describe('gauge legend', () => {
     await expect(pg).not.toHaveText(at1536);
     await expect(page.locator('.glegend')).not.toContainText('to 1M');
   });
+
+  for (const dims of [384, 3072]) {
+    test(`never contradicts the verdict at ${dims} dimensions`, async ({ page }) => {
+      // 1M items, flat growth, 200ms: tier 0 at 384 and tier 2 at 3072.
+      await page.goto(`./?n=3&g=1&l=200&d=${dims}`);
+      const active = page.locator('.glegend .row.on');
+      await expect(active).toHaveCount(1);
+      const tier = Number(await active.getAttribute('data-t'));
+      const badge = await page.getByTestId('tier-badge').innerText();
+      expect(badge).toBe(`TIER ${tier}`);
+      const range = await active.locator('em').innerText();
+      const bound = parseCompact(range);
+      if (range.startsWith('to ')) expect(1_000_000).toBeLessThanOrEqual(bound);
+      if (range.endsWith('+')) expect(1_000_000).toBeGreaterThan(bound);
+    });
+  }
 });

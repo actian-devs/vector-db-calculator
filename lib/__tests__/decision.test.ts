@@ -95,6 +95,19 @@ describe('air-gapped never counts toward escalation', () => {
     ).not.toBe(3);
   });
 
+  it('does not let edge and air-gapped stack with one real demand', () => {
+    const base = { ...stackable, matching: 'hybrid', postgres: false } as const;
+    // Otherwise tier 2, so this isolates the effect of the two deployment flags.
+    expect(tierOf(base)).toBe(2);
+    expect(tierOf({ ...base, residency: 'edge' })).toBe(2);
+    expect(tierOf({ ...base, residency: 'airgapped' })).toBe(2);
+  });
+
+  it('keeps edge visible as a consideration', () => {
+    const d = decide(w({ ...stackable, residency: 'edge' }), DEFAULT_ASSUMPTIONS);
+    expect(d.considerations.map((c) => c.id)).toContain('edge');
+  });
+
   it('still escalates when real demands stack', () => {
     expect(tierOf({ ...stackable, matching: 'hybrid', tenancy: 'many', postgres: false })).toBe(3);
   });
