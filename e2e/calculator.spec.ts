@@ -276,13 +276,18 @@ test.describe('page identity', () => {
 
   test('social card images point at a file that exists', async ({ page, request }) => {
     await page.goto('./');
+    // The tags point at the production site, which may not be where this build
+    // is served. So check the image sits directly under the site's own URL (no
+    // doubled base path), and that the file exists next to the page here.
+    const site = await page.locator('meta[property="og:url"]').getAttribute('content');
+    const sitePath = new URL(site!).pathname.replace(/\/?$/, '/');
     for (const sel of ['meta[property="og:image"]', 'meta[name="twitter:image"]']) {
       const content = await page.locator(sel).first().getAttribute('content');
       expect(content).toMatch(/^https:\/\//);
-      // The absolute URL targets the production host, so check its path here.
-      const res = await request.get(new URL(new URL(content!).pathname, page.url()).toString());
-      expect(res.status(), `${sel} -> ${content}`).toBe(200);
+      expect(new URL(content!).pathname, `${sel} -> ${content}`).toBe(`${sitePath}og-image.png`);
     }
+    const res = await request.get(new URL('og-image.png', page.url()).toString());
+    expect(res.status()).toBe(200);
   });
 });
 

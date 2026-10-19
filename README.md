@@ -65,6 +65,69 @@ higher when you already run Postgres.
   JSON. The record carries the assumptions actually used and the considerations that were
   weighed, so a reviewer can tell whether the model was calibrated or taken as shipped.
 
+## Memory cost estimate
+
+Under the cost table, a card prices the memory the workload needs, today and in 12 months,
+and a "Cost as you scale" chart shows the same estimate from 1K to 100M items. It prices
+hardware memory only. It quotes no database price, Actian's or anyone else's, and names no
+vendor on the page.
+
+**The model.** Memory needed, in decimal GB, is
+`items x dims x 4 bytes x hnswMemoryOverhead (1.5) x headroom (1.3)`. Both multipliers are
+rules of thumb, editable and labeled as estimates. Monthly cost is that figure times a price
+per GB-month, shown as low, mid and high. The int8 vector figure from the cost table is priced
+too, as vectors only. Tiers 0, 2 and 3 show the estimate the same way; tier 1 shows none,
+because a full-text index is small and this model does not size it.
+
+**Units.** Every GB on the page is decimal (10^9 bytes), including the cost table. Cloud
+providers price per GiB (2^30 bytes, about 7.4% larger), so `lib/prices.ts` converts each
+instance price to per decimal GB-month: `hourly x 730 / GiB / 1.0737`. Skipping that step
+would overstate cost by about 7%. At the seeded prices the range is $5.57 to $5.62 per
+GB-month.
+
+**Prices.** `data/memory-prices.json` holds dated, sourced on-demand list prices for two
+memory-optimized instances in US regions:
+
+| Provider | Instance | Region | Hourly | Source |
+| --- | --- | --- | --- | --- |
+| AWS | r7i.xlarge, 4 vCPU, 32 GiB | us-east-1 | $0.2646 | AWS EC2 bulk price list (public CSV) |
+| GCP | n2-highmem-4, 4 vCPU, 32 GiB | us-central1 | $0.262028 | gcloud-compute.com machine-types CSV |
+
+The GCP figure comes from gcloud-compute.com, an Apache-2.0 dataset built from Google's
+billing catalog, because Google's own pricing page renders its tables in the browser and its
+billing API needs a key. It matches Google's published N2 per-vCPU and per-GiB rates
+(4 x $0.031611 + 32 x $0.004237 = $0.26203). We read its `hour` column, not `month`, which
+includes sustained-use discounts. A $0.2096 figure seen elsewhere for this instance disagrees
+with both sources and is not used.
+
+Whole-instance price is spread over the instance's memory, so the per-GB figure includes the
+vCPUs that come with it. Managed Postgres prices run about 1.8x higher; that line appears only
+when the data file has a verified `managedPostgres` entry, and today it has none.
+
+**How it compares with Actian's estimator.** The deployment estimator on Actian's pricing page
+recommends 8 GB of RAM for 1M vectors. That figure is for its default of 128 dimensions. It
+answers in 8, 16 and 32 GB steps: at float32 and 1M vectors it gives 8 GB at 768 dimensions,
+16 GB at 1536 and 32 GB at 3072. This tool's continuous estimate for the same inputs is 6, 12
+and 24 GB, which sits inside each of those steps. The difference is that the estimator rounds
+up to a machine size and this tool does not. No Actian prices are used here.
+
+**Weekly refresh.** `.github/workflows/refresh-prices.yml` runs every Monday and on demand. It
+runs `scripts/refresh-prices.mjs`, which streams the AWS price list (about 300 MB, abandoned
+at the first matching row) and reads the GCP CSV, then opens or updates one pull request on
+`bot/refresh-memory-prices` for a person to review:
+
+- A source that fails keeps its last good entry, and the PR body says so. If both fail, nothing
+  is written and the run fails, so it is visible.
+- A move of more than 15% is flagged at the top of the PR body.
+- The repository setting "Allow GitHub Actions to create and approve pull requests" must be on.
+  PRs opened with the built-in token do not trigger other workflows, so run the checks on
+  that PR by hand (close and reopen it, or push to the branch) before merging.
+
+Try it locally with `node scripts/refresh-prices.mjs --dry-run`.
+
+**Staleness.** The card shows "Priced [date], on-demand list prices, US regions. Not a quote."
+If the file is more than 60 days old, it adds a warning.
+
 ## Architecture
 
 `lib/` is the decision model and is framework-free. It imports nothing from React or the DOM,
@@ -76,11 +139,11 @@ or inside an air-gapped network.
 
 ## Tests
 
-90 in total. Run both before pushing.
+172 in total. Run both before pushing.
 
 ```bash
-npm run test       # 55 unit tests over the decision model, formatting and URL state
-npm run test:e2e   # 35 browser tests, desktop and mobile, against the built export
+npm run test       # 96 unit tests: decision model, cost model, formatting, URL state, price refresh
+npm run test:e2e   # 76 browser tests, desktop and mobile, against the built export (3 are viewport-specific skips)
 ```
 
 The unit tests pin the model: tier outcomes, that assumptions actually drive the result, that
