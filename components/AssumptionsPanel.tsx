@@ -8,6 +8,7 @@ import {
   isCustomised,
 } from '@/lib/assumptions';
 import type { Assumptions } from '@/lib/types';
+import { NumberField } from './NumberField';
 
 interface Props {
   assumptions: Assumptions;
@@ -25,8 +26,7 @@ interface Props {
 export function AssumptionsPanel({ assumptions, onChange }: Props) {
   const customised = isCustomised(assumptions);
 
-  const update = (key: keyof Assumptions, raw: string) => {
-    const parsed = Number(raw.replace(/[, _]/g, ''));
+  const update = (key: keyof Assumptions, parsed: number) => {
     onChange({
       ...assumptions,
       [key]: clampAssumption(key, parsed, assumptions[key]),
@@ -60,17 +60,16 @@ export function AssumptionsPanel({ assumptions, onChange }: Props) {
                 {field.label}
                 <span className="ah">{field.help}</span>
               </label>
-              <input
+              <NumberField
                 id={`a-${field.key}`}
                 data-assumption={field.key}
                 data-changed={changed}
-                type="number"
                 inputMode="decimal"
                 min={field.min}
                 max={field.max}
                 step={field.step}
                 value={assumptions[field.key]}
-                onChange={(e) => update(field.key, e.target.value)}
+                onCommit={(n) => update(field.key, n)}
                 aria-describedby={`a-${field.key}-help`}
               />
               <span id={`a-${field.key}-help`} className="visually-hidden">

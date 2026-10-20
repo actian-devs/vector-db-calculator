@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_ASSUMPTIONS } from '../assumptions';
+import { clampAssumption, DEFAULT_ASSUMPTIONS } from '../assumptions';
 import { readCampaign, withUtm } from '../links';
 import {
   DEFAULT_WORKLOAD,
+  MAX_ITEMS,
   decodeState,
   encodeState,
   mergeIntoLocation,
@@ -94,5 +95,42 @@ describe('campaign attribution', () => {
   it('keeps any query string the destination already had', () => {
     const tagged = withUtm('https://example.com/page?ref=keepme', 'organic');
     expect(new URL(tagged).searchParams.get('ref')).toBe('keepme');
+  });
+});
+
+/** Links from the QA audit that crashed the page or printed impossible figures. */
+describe('crafted links cannot break the page', () => {
+  it('ignores the fixed bytes-per-component constants', () => {
+    for (const q of [
+      '?n=3&a.bytesPerComponentF32=0',
+      '?n=3&a.bytesPerComponentF32=-4',
+      '?n=3&a.bytesPerComponentInt8=1000000',
+    ]) {
+      const { assumptions } = decodeState(q);
+      expect(assumptions.bytesPerComponentF32).toBe(4);
+      expect(assumptions.bytesPerComponentInt8).toBe(1);
+    }
+  });
+
+  it('never lets an unknown key past the clamp', () => {
+    expect(clampAssumption('bytesPerComponentF32', -4, 4)).toBe(4);
+  });
+
+  it('opens a bare or empty link on the default workload, not the 1K stop', () => {
+    expect(decodeState('').workload.items).toBe(DEFAULT_WORKLOAD.items);
+    expect(decodeState('?g=1').workload.items).toBe(DEFAULT_WORKLOAD.items);
+    expect(decodeState('?n=').workload.items).toBe(DEFAULT_WORKLOAD.items);
+    expect(decodeState('?n=0').workload.items).toBe(1_000);
+  });
+
+  it('bounds and rounds a custom item count', () => {
+    expect(decodeState('?n=-1&ni=1e15').workload.items).toBe(MAX_ITEMS);
+    expect(decodeState('?n=-1&ni=1e300').workload.items).toBe(MAX_ITEMS);
+    expect(decodeState('?n=-1&ni=1.5').workload.items).toBe(2);
+  });
+
+  it('accepts option values in any case', () => {
+    expect(decodeState('?f=ALWAYS').workload.filtering).toBe('always');
+    expect(decodeState('?m=Hybrid').workload.matching).toBe('hybrid');
   });
 });

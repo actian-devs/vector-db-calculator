@@ -5,9 +5,9 @@
  *
  * Holding the same state in React as well would mean two things to keep in
  * step. Instead the URL is the store, React subscribes to it through
- * useSyncExternalStore, and every edit rewrites the URL. That also makes the
- * back button work and guarantees a shared link reproduces exactly what the
- * author saw.
+ * useSyncExternalStore, and every edit rewrites the URL with replaceState, so
+ * edits add no history entries. That guarantees a shared link reproduces
+ * exactly what the author saw.
  */
 
 const listeners = new Set<() => void>();

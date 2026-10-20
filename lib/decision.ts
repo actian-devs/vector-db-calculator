@@ -1,4 +1,4 @@
-import { flatCeiling, itemsAfterGrowth, pgvectorCeiling, scanMs } from './compute';
+import { flatCeiling, itemsAfterGrowth, pgvectorCeiling, scanMs, throughputBounds } from './compute';
 import { compactItems } from './format';
 import type {
   Assumptions,
@@ -211,8 +211,9 @@ export function decide(w: Workload, a: Assumptions): Decision {
 
   const quiet = w.qps <= 10;
   if (items12 <= flat && quiet && w.filtering === 'never' && w.tenancy === 'single') {
-    const optimistic = scanMs(items12, w.dims, a.gflopsHigh);
-    const pessimistic = scanMs(items12, w.dims, a.gflopsLow);
+    const { slow, fast } = throughputBounds(a);
+    const optimistic = scanMs(items12, w.dims, fast);
+    const pessimistic = scanMs(items12, w.dims, slow);
     reasons.push(
       reason(
         'fits-flat',
@@ -253,7 +254,7 @@ export function decide(w: Workload, a: Assumptions): Decision {
     reasons.push(
       reason(
         'past-flat',
-        `a brute-force scan would take about ${Math.round(scanMs(items12, w.dims, a.gflopsHigh))}ms here, so you want an index`,
+        `a brute-force scan would take about ${Math.round(scanMs(items12, w.dims, throughputBounds(a).fast))}ms here, so you want an index`,
         ['gflopsHigh'],
       ),
     );

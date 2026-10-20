@@ -110,7 +110,7 @@ test.describe('assumptions are editable', () => {
     await page.locator('.acard summary').click();
     const input = page.locator('input[data-assumption="ramBudgetGb"]');
     await input.fill('512');
-    await input.dispatchEvent('change');
+    await input.press('Enter');
 
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 2');
     await expect(page.locator('.a-flag')).toHaveText('EDITED');
@@ -120,6 +120,7 @@ test.describe('assumptions are editable', () => {
     await page.goto('./');
     await page.locator('.acard summary').click();
     await page.locator('input[data-assumption="ramBudgetGb"]').fill('128');
+    await page.locator('input[data-assumption="ramBudgetGb"]').press('Enter');
     await page.waitForFunction(() => window.location.search.includes('a.ramBudgetGb'));
     expect(page.url()).toContain('a.ramBudgetGb=128');
   });
@@ -369,6 +370,7 @@ test.describe('memory cost estimate', () => {
     await page.locator('.acard summary').click();
     const input = page.locator('input[data-assumption="priceHighPerGbMonth"]');
     await input.fill('20');
+    await input.press('Enter');
     await input.dispatchEvent('change');
     await expect(page.getByTestId('cost-mid-today')).not.toHaveText(before);
     await page.waitForFunction(() => window.location.search.includes('a.priceHighPerGbMonth=20'));
@@ -432,5 +434,56 @@ test.describe('assumptions panel labels', () => {
     await expect(page.locator('#a-headroom-help')).toContainText('Default 1.3.');
     await expect(page.locator('input[data-assumption="hnswMemoryOverhead"]')).toHaveValue('1.5');
     await expect(page.locator('input[data-assumption="headroom"]')).toHaveValue('1.3');
+  });
+});
+
+test.describe('QA regressions', () => {
+  test('a crafted link with a zero byte size still renders a verdict', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('./?n=3&a.bytesPerComponentF32=0');
+    await expect(page.getByTestId('tier-badge')).toBeVisible();
+    await page.goto('./?n=3&a.bytesPerComponentF32=-4');
+    await expect(page.getByTestId('cost-today')).not.toContainText('-');
+    expect(errors).toEqual([]);
+  });
+
+  test('a bare link opens on the default 100K workload', async ({ page }) => {
+    await page.goto('./');
+    await expect(page.getByTestId('items-today')).toHaveText('100,000');
+  });
+
+  test('an assumption can be typed digit by digit', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('.acard summary').first().click();
+    const ram = page.locator('input[data-assumption="ramBudgetGb"]');
+    await ram.fill('');
+    await ram.pressSequentially('64');
+    await ram.press('Tab');
+    await expect(ram).toHaveValue('64');
+    await expect.poll(() => page.url()).toContain('a.ramBudgetGb=64');
+  });
+
+  test('custom dimensions can be typed through a standard value', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('label[for="dims-custom"]').click();
+    const dims = page.getByTestId('dims-custom-input');
+    await dims.fill('');
+    await dims.pressSequentially('7680');
+    await dims.press('Enter');
+    await expect(dims).toHaveValue('7680');
+    await expect.poll(() => page.url()).toContain('d=7680');
+  });
+
+  test('copy link on a fresh visit copies a link that reproduces the verdict', async ({
+    page,
+    context,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'clipboard permissions are desktop-only here');
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('./');
+    await page.getByRole('button', { name: 'copy link' }).click();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toMatch(/^http.*\?.*n=2/);
   });
 });
