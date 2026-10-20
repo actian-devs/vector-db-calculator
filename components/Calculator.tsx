@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
 import { footprint, itemsAfterGrowth, memoryCost } from '@/lib/compute';
-import { decide, hasMemoryEstimate, TIER_COPY } from '@/lib/decision';
+import { decide, hasMemoryEstimate, listOf } from '@/lib/decision';
 import { fullItems } from '@/lib/format';
 import { readCampaign, readsFor, withUtm, LINKS } from '@/lib/links';
 import { recordEvaluation } from '@/lib/telemetry';
@@ -102,7 +102,12 @@ export function Calculator() {
     [commit, workload, assumptions],
   );
 
-  const copy = TIER_COPY[decision.tier];
+  const copy = decision.copy;
+  const stackedText = listOf(
+    decision.considerations
+      .filter((c) => decision.stacked.includes(c.id))
+      .map((c) => c.text.replace(/\.$/, '').toLowerCase()),
+  );
   const colour = TIER_COLOUR[decision.tier];
   const tierVars = { '--tc': colour.c, '--tcs': colour.soft } as React.CSSProperties;
   // A custom count above the top stop sits at the top, not back at 1K.
@@ -343,7 +348,7 @@ export function Calculator() {
                 <Segmented
                   name="pg"
                   legend="Already running Postgres"
-                  hint="decides what pgvector costs you"
+                  hint="raises the bar for adding a second system"
                   value={workload.postgres}
                   onChange={(v) => set('postgres', v)}
                   options={[
@@ -369,7 +374,7 @@ export function Calculator() {
                   full
                   name="res"
                   legend="Where the data must live"
-                  hint="the constraint that overrides everything else"
+                  hint="shapes the reading list; Postgres self-hosts anywhere, so it does not change the tier"
                   value={workload.residency}
                   onChange={(v) => set('residency', v)}
                   options={[
@@ -425,7 +430,7 @@ export function Calculator() {
             <div className="card">
               <div className="card-h">WHY YOU LANDED HERE</div>
               <ul className="because" data-testid="reasons">
-                {decision.reasons.slice(0, 3).map((r) => (
+                {decision.reasons.map((r) => (
                   <li key={r.id}>{r.text}</li>
                 ))}
               </ul>
@@ -460,8 +465,8 @@ export function Calculator() {
                 </summary>
 
                 <p className="c-intro">
-                  {decision.reasons.some((r) => r.id === 'stacked-demands')
-                    ? 'Postgres can meet each of these on its own. It is the number of them landing on one store at this size that tipped the verdict.'
+                  {decision.stacked.length > 0
+                    ? `Postgres can meet each of these on its own. What tipped the verdict is ${decision.stacked.length} of them landing on one store at this size: ${stackedText}. The rest did not count toward it.`
                     : 'These did not decide the verdict. Postgres can meet them, and it is worth knowing how before you reach for another system.'}
                 </p>
                 <ul className="considerations" data-testid="considerations">

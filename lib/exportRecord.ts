@@ -1,6 +1,6 @@
 import { changedAssumptions, DEFAULT_ASSUMPTIONS } from './assumptions';
 import { footprint, itemsAfterGrowth, memoryCost, type MemoryCost } from './compute';
-import { hasMemoryEstimate, TIER_COPY } from './decision';
+import { hasMemoryEstimate } from './decision';
 import { bytesLabel, compactItems, fullItems, gbLabel, scanLabel, usd } from './format';
 import { PRICES } from './prices';
 import type { Assumptions, Decision, Workload } from './types';
@@ -47,7 +47,7 @@ export function decisionRecordMarkdown(
   shareUrl: string,
   now = new Date(),
 ): string {
-  const copy = TIER_COPY[d.tier];
+  const copy = d.copy;
   const today = footprint(w.items, w.dims, a);
   const next = footprint(d.items12, w.dims, a);
   const overrides = changedAssumptions(a);
@@ -211,7 +211,7 @@ export function decisionRecordJson(
 ): DecisionRecordJson {
   return {
     generatedAt: now.toISOString(),
-    verdict: { tier: d.tier, headline: TIER_COPY[d.tier].headline },
+    verdict: { tier: d.tier, headline: d.copy.headline },
     workload: w,
     assumptions: a,
     assumptionsChanged: changedAssumptions(a),
