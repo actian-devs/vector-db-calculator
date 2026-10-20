@@ -21,6 +21,7 @@ import { CostChart } from './CostChart';
 import { CostTable } from './CostTable';
 import { ExportPanel } from './ExportPanel';
 import { InfraCostCard } from './InfraCostCard';
+import { NumberField } from './NumberField';
 import { ScaleGauge } from './ScaleGauge';
 import { Segmented } from './Segmented';
 import { TelemetryNotice } from './TelemetryNotice';
@@ -41,20 +42,24 @@ function Chevron() {
 }
 
 const STANDARD_DIMS = [384, 768, 1536, 3072];
-/** Origin plus path, so the share link is absolute without re-reading location on every render. */
-const BASE_URL =
-  typeof window === 'undefined' ? '' : window.location.origin + window.location.pathname;
 
 export function Calculator() {
   // The query string is the store. Nothing is duplicated in React, so there is
-  // no second copy to keep in step and the back button works for free.
+  // no second copy to keep in step. Edits replace the history entry rather than
+  // adding one, so the back button leaves the page instead of undoing a click.
   const search = useSyncExternalStore(subscribeToSearch, getSearch, getServerSearch);
 
   const { workload, assumptions } = useMemo(() => decodeState(search), [search]);
   const campaign = useMemo(() => readCampaign(search), [search]);
+  // Built from the decoded state rather than the raw query string, so a fresh
+  // visit with nothing in the address bar still copies a link that reproduces
+  // the verdict. Anything else in the URL, such as utm_campaign, is kept.
   const shareUrl = useMemo(
-    () => (search === '' ? '' : `${BASE_URL}${search}`),
-    [search],
+    () =>
+      typeof window === 'undefined' ? '' : mergeIntoLocation(getHref(), workload, assumptions),
+    // search is the store; the href it came from changes with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [search, workload, assumptions],
   );
   const customDims = !STANDARD_DIMS.includes(workload.dims);
 
@@ -100,10 +105,9 @@ export function Calculator() {
   const copy = TIER_COPY[decision.tier];
   const colour = TIER_COLOUR[decision.tier];
   const tierVars = { '--tc': colour.c, '--tcs': colour.soft } as React.CSSProperties;
-  const sliderIndex = Math.max(
-    0,
-    ITEM_STEPS.findIndex((s) => s >= workload.items),
-  );
+  // A custom count above the top stop sits at the top, not back at 1K.
+  const stopAtOrAbove = ITEM_STEPS.findIndex((s) => s >= workload.items);
+  const sliderIndex = stopAtOrAbove === -1 ? ITEM_STEPS.length - 1 : stopAtOrAbove;
   const reads = readsFor(decision.tier, workload);
 
   return (
@@ -211,21 +215,15 @@ export function Calculator() {
                     </span>
                   </div>
                   {customDims ? (
-                    <input
+                    <NumberField
                       className="numin mono"
-                      type="number"
                       min={2}
                       max={16384}
                       step={1}
                       data-testid="dims-custom-input"
                       value={workload.dims}
                       aria-label="Custom embedding dimensions"
-                      onChange={(e) => {
-                        const n = Number(e.target.value);
-                        if (Number.isFinite(n)) {
-                          set('dims', Math.min(16384, Math.max(2, Math.round(n))));
-                        }
-                      }}
+                      onCommit={(n) => set('dims', Math.min(16384, Math.max(2, Math.round(n))))}
                     />
                   ) : null}
                 </div>

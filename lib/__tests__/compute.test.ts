@@ -74,4 +74,19 @@ describe('formatting', () => {
   it('stays in milliseconds below a second', () => {
     expect(scanRange(31, 307).unit).toBe('ms');
   });
+
+  it('moves to minutes and hours instead of printing huge second counts', () => {
+    expect(scanRange(30_000, 300_000)).toEqual({ value: '0.5-5.0', unit: 'min' });
+    expect(scanRange(3_600_000, 36_000_000)).toEqual({ value: '1.0-10', unit: 'h' });
+  });
+
+  it('counts past a billion in trillions', () => {
+    expect(compactItems(1.6e13)).toBe('16T');
+  });
+
+  it('orders the scan range when the throughput inputs are swapped', () => {
+    const swapped = { ...DEFAULT_ASSUMPTIONS, gflopsLow: 100, gflopsHigh: 1 };
+    const f = footprint(1e6, 1536, swapped);
+    expect(f.scanMsLow).toBeLessThan(f.scanMsHigh);
+  });
 });

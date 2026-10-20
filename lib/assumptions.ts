@@ -142,7 +142,8 @@ export function clampAssumption(
 ): number {
   if (!Number.isFinite(value)) return current;
   const field = ASSUMPTION_FIELDS.find((f) => f.key === key);
-  if (!field) return value;
+  // Anything without a field is fixed, not user editable, so it never changes.
+  if (!field) return current;
   return Math.min(field.max, Math.max(field.min, value));
 }
 

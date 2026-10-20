@@ -17,12 +17,21 @@ export function footprint(items: number, dims: number, a: Assumptions): Footprin
   const comparisons = items * dims;
   // One multiply plus one add per component.
   const flops = 2 * comparisons;
+  const { slow, fast } = throughputBounds(a);
   return {
     float32Bytes: items * dims * a.bytesPerComponentF32,
     int8Bytes: items * dims * a.bytesPerComponentInt8,
     comparisons,
-    scanMsLow: (flops / (a.gflopsHigh * 1e9)) * 1000,
-    scanMsHigh: (flops / (a.gflopsLow * 1e9)) * 1000,
+    scanMsLow: (flops / (fast * 1e9)) * 1000,
+    scanMsHigh: (flops / (slow * 1e9)) * 1000,
+  };
+}
+
+/** Throughput inputs in order, whichever way round the user typed them. */
+export function throughputBounds(a: Assumptions): { slow: number; fast: number } {
+  return {
+    slow: Math.min(a.gflopsLow, a.gflopsHigh),
+    fast: Math.max(a.gflopsLow, a.gflopsHigh),
   };
 }
 
@@ -50,7 +59,7 @@ export function flatCeiling(w: Workload, a: Assumptions): number {
   const byMemory = memoryCeiling(w.dims, a);
   if (w.latencyMs === 0) return byMemory;
   // Solve scanMs(items) = target at the optimistic end of the throughput range.
-  const byTime = ((w.latencyMs / 1000) * a.gflopsHigh * 1e9) / (2 * w.dims);
+  const byTime = ((w.latencyMs / 1000) * throughputBounds(a).fast * 1e9) / (2 * w.dims);
   return Math.min(byTime, byMemory);
 }
 

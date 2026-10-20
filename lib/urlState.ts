@@ -1,4 +1,4 @@
-import { clampAssumption, DEFAULT_ASSUMPTIONS } from './assumptions';
+import { ASSUMPTION_FIELDS, clampAssumption, DEFAULT_ASSUMPTIONS } from './assumptions';
 import type {
   Assumptions,
   ChangeRate,
@@ -33,6 +33,9 @@ export const DEFAULT_WORKLOAD: Workload = {
 /** Slider stops. The slider carries an index, not the raw count. */
 export const ITEM_STEPS = [1e3, 1e4, 1e5, 1e6, 1e7, 1e8] as const;
 
+/** Largest custom item count a link can carry, 100 billion, well past any real workload. */
+export const MAX_ITEMS = 1e11;
+
 const LAT: LatencyTargetMs[] = [0, 10, 50, 200];
 const QPS: QpsBand[] = [1, 10, 100, 101];
 const FILTERING: Filtering[] = ['never', 'sometimes', 'always'];
@@ -42,7 +45,8 @@ const TENANCY: Tenancy[] = ['single', 'many'];
 const RESIDENCY: Residency[] = ['cloud', 'onprem', 'airgapped', 'edge'];
 
 function oneOf<T>(allowed: readonly T[], raw: string | null, fallback: T): T {
-  const hit = allowed.find((v) => String(v) === raw);
+  const wanted = raw?.trim().toLowerCase();
+  const hit = allowed.find((v) => String(v) === wanted);
   return hit === undefined ? fallback : hit;
 }
 
@@ -90,10 +94,16 @@ export function decodeState(search: string): {
     return { workload: DEFAULT_WORKLOAD, assumptions: DEFAULT_ASSUMPTIONS };
   }
 
-  const stepIndex = Number(q.get('n'));
+  // A missing or empty n means the default workload. Number('') is 0, which
+  // would otherwise land a bare link on the 1K stop.
+  const rawStep = q.get('n');
+  const stepIndex = rawStep === null || rawStep.trim() === '' ? NaN : Number(rawStep);
   let items = DEFAULT_WORKLOAD.items;
   if (stepIndex === -1) {
-    items = positiveInt(q.get('ni'), DEFAULT_WORKLOAD.items);
+    items = Math.min(
+      MAX_ITEMS,
+      Math.max(1, Math.round(positiveInt(q.get('ni'), DEFAULT_WORKLOAD.items))),
+    );
   } else if (Number.isInteger(stepIndex) && stepIndex >= 0 && stepIndex < ITEM_STEPS.length) {
     items = ITEM_STEPS[stepIndex];
   }
@@ -112,8 +122,11 @@ export function decodeState(search: string): {
     postgres: q.get('p') === 'yes',
   };
 
+  // Only user-editable assumptions are read from a link. The bytes-per-component
+  // constants are fixed, and accepting them let a crafted link print negative
+  // memory or crash the page.
   const assumptions: Assumptions = { ...DEFAULT_ASSUMPTIONS };
-  (Object.keys(DEFAULT_ASSUMPTIONS) as (keyof Assumptions)[]).forEach((k) => {
+  ASSUMPTION_FIELDS.forEach(({ key: k }) => {
     const raw = q.get(`a.${k}`);
     if (raw === null) return;
     const n = Number(raw);

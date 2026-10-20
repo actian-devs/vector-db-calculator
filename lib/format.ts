@@ -3,6 +3,7 @@
 /** 1_500_000 becomes "1.5M". Used wherever space is tight. */
 export function compactItems(n: number): string {
   const v = Math.round(n);
+  if (v >= 1e12) return trim(v / 1e12, v / 1e12 < 10) + 'T';
   if (v >= 1e9) return trim(v / 1e9, v / 1e9 < 10) + 'B';
   if (v >= 1e6) return trim(v / 1e6, v / 1e6 < 10) + 'M';
   if (v >= 1e3) return trim(v / 1e3, v / 1e3 < 10) + 'K';
@@ -46,8 +47,14 @@ export function bytesLabel(b: number): string {
  * two unrelated numbers.
  */
 export function scanRange(lowMs: number, highMs: number): { value: string; unit: string } {
-  const unit = highMs >= 1000 ? 's' : 'ms';
-  const divisor = highMs >= 1000 ? 1000 : 1;
+  const [unit, divisor] =
+    highMs >= 7_200_000
+      ? ['h', 3_600_000]
+      : highMs >= 120_000
+        ? ['min', 60_000]
+        : highMs >= 1000
+          ? ['s', 1000]
+          : ['ms', 1];
   const fmt = (x: number) => {
     const v = x / divisor;
     if (v < 1) return v.toFixed(2).replace(/0$/, '');
