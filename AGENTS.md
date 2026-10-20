@@ -8,11 +8,9 @@ Context for AI coding agents working in this repository. Read this before changi
 description of an agent or RAG workload and returns one of four recommendations, from a flat
 file up to a dedicated vector database.
 
-It is two things at once, and both matter:
-
-- the landing page for paid newsletter and social campaigns aimed at developers
-- a tool people use to make real infrastructure decisions, so the output has to be
-  defensible rather than persuasive
+People use it to make real infrastructure decisions, so the output has to be defensible
+rather than persuasive. A verdict that tells a reader they do not need a vector database is a
+correct and expected outcome.
 
 ## Stack
 
@@ -54,15 +52,14 @@ from its result. Do not add a second source of truth.
 
 ## Hard rules
 
-These are editorial and legal positions agreed with the client, not style preferences. Do not
-relax them, and do not work around them to "improve conversion".
+These are editorial positions, not style preferences. Do not relax them, and do not work
+around them to "improve conversion".
 
-1. **No benchmark, performance charts, performance table, or any VectorAI DB latency or
-   recall figure.** The page reaches tier 3 from the shape of the workload, then hands off to
-   the product pages. Background: the only benchmark available ran VectorAI DB on a
-   capacity-limited trial license, which makes the product look worse than pgvector. It is
-   not publishable and must not be reintroduced. The one chart allowed is the memory cost
-   chart: hardware list prices only, no Actian or competitor prices, no vendor names on it.
+1. **No benchmark figures: the page sizes workloads, it does not compare products.** No
+   performance charts, performance table, or latency or recall figure for any database. The
+   page reaches tier 3 from the shape of the workload, then links to the product pages. The
+   one chart allowed is the memory cost chart: hardware list prices only, no Actian or
+   competitor prices, no vendor names on it.
 2. **No competitor performance claims.** Comparison posts are linked. No numbers from them
    are restated here.
 3. **Tiers 0 and 1 are real outcomes and keep equal visual weight to tier 3.** Do not make
@@ -101,12 +98,11 @@ same standard.
 - **No cookies and no analytics vendor.** No Google Analytics, no tag manager, no Segment,
   no Hotjar, no ad or tracking pixel. An end-to-end test asserts the page sets no cookies and
   loads nothing from a known analytics or tag-manager domain. Those tests are the contract.
-  The earlier "zero third-party requests" rule was dropped by Henry; fonts are still
-  self-hosted from `fonts/` and nothing currently loads from another origin, so prefer to
-  keep it that way unless there is a reason.
+  Fonts are self-hosted from `fonts/` and nothing currently loads from another origin, so
+  prefer to keep it that way unless there is a reason.
 - **Telemetry is first-party, anonymous and off by default.** `lib/telemetry.ts` sends the
-  workload shape and the resulting tier so the team can see what people actually size for,
-  as evidence for pricing. It is inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors
+  workload shape and the resulting tier so the team can see what people actually size for.
+  It is inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors
   Do Not Track and Global Privacy Control, uses no cookies and no persistent identifier, and
   offers an opt-out. Do not add fields that could identify a person. The memory cost inputs
   (`COST_ASSUMPTIONS`) are never sent, not even their names, and a unit test checks it.
@@ -175,15 +171,15 @@ needs. Hardware only: never a database price, Actian's or anyone else's.
 
 ## Adding or changing a link
 
-Every outbound URL must be verified live before it ships. Dead links on a paid campaign
-landing page are expensive.
+Every outbound URL must be verified live before it ships. Dead links on a page people
+bookmark and share are expensive.
 
 Add it to `LINKS` in `lib/links.ts` and reference it from `readsFor()` or the hub list in
 `app/page.tsx`. UTM tagging is applied by `withUtm()`; do not hand-write query strings.
 
 ## Copy rules
 
-- **No em dashes anywhere.** Rewrite the construction. Firm client preference.
+- **No em dashes anywhere.** Rewrite the construction.
 - US English, sentence case.
 - Plain, technical, a little opinionated. No marketing fluff.
 - Active voice. A button names what happens when you press it.

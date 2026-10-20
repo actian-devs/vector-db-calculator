@@ -63,18 +63,18 @@ describe('url state', () => {
 
   it('preserves utm_campaign when writing state back', () => {
     const next = mergeIntoLocation(
-      'https://example.com/?utm_campaign=7wdata&n=0',
+      'https://example.com/?utm_campaign=example&n=0',
       { ...DEFAULT_WORKLOAD, items: 10_000_000 },
       DEFAULT_ASSUMPTIONS,
     );
-    expect(next).toContain('utm_campaign=7wdata');
+    expect(next).toContain('utm_campaign=example');
     expect(decodeState(new URL(next).search).workload.items).toBe(10_000_000);
   });
 });
 
 describe('campaign attribution', () => {
   it('inherits a valid campaign from the page url', () => {
-    expect(readCampaign('?utm_campaign=7wdata')).toBe('7wdata');
+    expect(readCampaign('?utm_campaign=example')).toBe('example');
   });
 
   it('falls back to organic for a missing or malformed campaign', () => {
@@ -84,11 +84,11 @@ describe('campaign attribution', () => {
   });
 
   it('tags every outbound link with source, medium and campaign', () => {
-    const tagged = withUtm('https://www.actian.com/databases/vectorai-db/', '7wdata');
+    const tagged = withUtm('https://www.actian.com/databases/vectorai-db/', 'example');
     const q = new URL(tagged).searchParams;
     expect(q.get('utm_source')).toBe('vector-db-calculator');
     expect(q.get('utm_medium')).toBe('hub');
-    expect(q.get('utm_campaign')).toBe('7wdata');
+    expect(q.get('utm_campaign')).toBe('example');
   });
 
   it('keeps any query string the destination already had', () => {

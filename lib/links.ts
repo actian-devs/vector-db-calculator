@@ -9,7 +9,7 @@ export interface Link {
  * Every outbound URL, in one place.
  *
  * House rule, see AGENTS.md: verify a link is live before adding it. Dead links
- * on a paid campaign landing page are expensive.
+ * on a page people bookmark and share are expensive.
  */
 export const LINKS = {
   embedded: {
@@ -156,7 +156,7 @@ export const UTM_MEDIUM = 'hub';
 
 /**
  * Campaign is inherited from the page's own utm_campaign so traffic from a
- * given newsletter stays attributable all the way through to the product page.
+ * given campaign stays attributable all the way through to the product page.
  */
 export function readCampaign(search: string): string {
   try {

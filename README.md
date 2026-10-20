@@ -164,12 +164,11 @@ domain. Treat those as the contract behind the footer claim, "No cookies and no 
 ## Privacy and telemetry
 
 The page sets **no cookies** and uses **no analytics vendor**: no Google Analytics, no tag
-manager, no Segment or Hotjar. The earlier "zero third-party requests" rule has been dropped,
-but nothing loads from another origin today: fonts are self-hosted, both SIL OFL 1.1, licenses
-in `fonts/`.
+manager, no Segment or Hotjar. Nothing loads from another origin today: fonts are self-hosted,
+both SIL OFL 1.1, licenses in `fonts/`.
 
 There is optional **first-party anonymous telemetry**, which exists to give the team the
-distribution of workload shapes people evaluate as evidence for pricing. It sends the eleven
+distribution of workload shapes people evaluate, so the model can be checked against real use. It sends the eleven
 inputs, the resulting tier and which model assumptions were overridden by name. It never
 sends the memory cost inputs (headroom and the price range), not even their names. It carries
 no cookie, no persistent identifier and nothing about the person.
@@ -201,12 +200,12 @@ Every outbound link is tagged at render:
 ```
 
 `<campaign>` is inherited from the page's own `utm_campaign`, so a visitor arriving on
-`...?utm_campaign=7wdata` carries it through to every blog and product link. It falls back to
+`...?utm_campaign=example` carries it through to every blog and product link. It falls back to
 `organic`. `utm_content` carries the tier, so Actian's existing analytics can see which verdict
 drove a click without any tracking on this page.
 
 ```
-https://actian-devs.github.io/vector-db-calculator/?utm_campaign=7wdata
+https://actian-devs.github.io/vector-db-calculator/?utm_campaign=example
 ```
 
 ## Deploy
