@@ -77,7 +77,7 @@ test.describe('verdicts', () => {
 
 test.describe('shared links', () => {
   test('a copied url reproduces the exact result', async ({ page }) => {
-    await page.goto('./?utm_campaign=7wdata');
+    await page.goto('./?utm_campaign=example');
     await setItems(page, 4);
     await pick(page, 'filter', 'always');
     await pick(page, 'res', 'air-gapped');
@@ -88,7 +88,7 @@ test.describe('shared links', () => {
     await page.goto(shared);
     await expect(page.getByTestId('tier-badge')).toHaveText(before);
     // Campaign attribution survives the state rewrite.
-    expect(shared).toContain('utm_campaign=7wdata');
+    expect(shared).toContain('utm_campaign=example');
   });
 
   test('hostile query values fall back instead of breaking', async ({ page }) => {
@@ -186,7 +186,7 @@ test.describe('privacy claims hold at runtime', () => {
 
 test.describe('outbound links', () => {
   test('every outbound link carries campaign attribution', async ({ page }) => {
-    await page.goto('./?utm_campaign=7wdata');
+    await page.goto('./?utm_campaign=example');
 
     // This is a static export, so the shipped HTML is identical for every
     // visitor and cannot contain a per-visitor campaign. Attribution is applied
@@ -199,7 +199,7 @@ test.describe('outbound links', () => {
           .first()
           .evaluate((e) => (e as HTMLAnchorElement).href),
       )
-      .toContain('utm_campaign=7wdata');
+      .toContain('utm_campaign=example');
 
     const hrefs = await page.locator('a[data-outbound="true"]').evaluateAll((els) =>
       els.map((e) => (e as HTMLAnchorElement).href),
@@ -209,7 +209,7 @@ test.describe('outbound links', () => {
       const q = new URL(href).searchParams;
       expect(q.get('utm_source')).toBe('vector-db-calculator');
       expect(q.get('utm_medium')).toBe('hub');
-      expect(q.get('utm_campaign')).toBe('7wdata');
+      expect(q.get('utm_campaign')).toBe('example');
       // The tier the reader actually saw, so Actian's own analytics can tell
       // which verdict drove the click without any tracking on this page.
       expect(q.get('utm_content')).toMatch(/^tier-[0-3]$/);

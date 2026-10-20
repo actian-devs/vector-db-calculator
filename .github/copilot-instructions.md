@@ -11,10 +11,10 @@ the DOM, so it stays unit testable and reusable. Business rules go in `lib/`, ne
 components. There is one derivation path: state changes, `decide()` runs, the UI re-renders
 from its result.
 
-**Never add a third-party request.** No Google Fonts, no analytics vendor, no tag manager, no
-CDN script. Fonts are self-hosted through `next/font/local`. End-to-end tests assert the page
-makes zero external requests and sets no cookies. Those tests are the contract, not a
-formality.
+**No cookies and no analytics vendor.** No Google Analytics, no tag manager, no tracking pixel.
+Fonts are self-hosted through `next/font/local`, and nothing loads from another origin today, so
+keep it that way. End-to-end tests assert the page sets no cookies and loads nothing from an
+analytics or tag-manager domain. Those tests are the contract, not a formality.
 
 **Telemetry is first-party, anonymous, off by default.** It is inert unless
 `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honours Do Not Track and Global Privacy Control, uses
@@ -26,7 +26,7 @@ same commit. A test checks the footer wording.
 
 **Never add performance numbers.** No benchmark, no charts, no VectorAI DB latency or recall
 figures, no competitor performance claims. Tier 3 is reached from the shape of the workload,
-then the page links out. This is a legal and editorial position.
+then the page links out. The page sizes workloads, it does not compare products.
 
 **Never tune the result toward the product.** Tiers 0 and 1 are real outcomes with equal
 visual weight to tier 3. Do not raise tier 3's prominence, soften the lower tiers, or adjust
