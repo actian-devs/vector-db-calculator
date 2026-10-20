@@ -26,7 +26,7 @@ deployment) produce one of four verdicts:
 | 0 | You don't need a vector database yet | A flat in-memory scan fits at the chosen latency target, with no filtering, one workspace, low concurrency |
 | 1 | You need keyword search, not vectors | Queries are exact terms rather than meaning |
 | 2 | pgvector will carry you for now | Past a flat scan but within what one Postgres instance can index on the memory you have |
-| 3 | You need a dedicated vector database | Past that memory-derived ceiling, filtering on every query at scale, or several operational demands stacking on a workload that has already outgrown a flat scan |
+| 3 | You need a dedicated vector database | Past that memory-derived ceiling, or several operational demands (hybrid search, many tenants, constant churn, always-on filtering at scale) stacking on a workload past half of it |
 
 The verdict recalculates on every change. There is no submit step.
 
@@ -46,8 +46,10 @@ are computed from the inputs:
 No single capability forces a dedicated store either. Hybrid search, multi-tenancy, constant
 churn and air-gapped deployment are things Postgres does, so each is listed under "things to
 design for" with the way Postgres meets it, not used as grounds for escalating. Escalation
-needs those demands to stack *and* the workload to be past its flat ceiling, and the bar is
-higher when you already run Postgres.
+needs two of hybrid search, many tenants, constant churn and always-on filtering (three if you
+already run Postgres) *and* the workload to be past its flat ceiling and past half its pgvector
+ceiling. That share is an editable assumption. Always-on filtering only counts once the
+workload passes the "heavy filtering strains above" assumption.
 
 ### What makes it usable for a real decision
 

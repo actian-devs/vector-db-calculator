@@ -14,7 +14,9 @@ const ARC_PATH = 'M 16 100 A 77 77 0 0 1 170 100';
  */
 function legend(flat: number, pg: number): { tier: Tier; label: string; range: string }[] {
   return [
-    { tier: 0, label: 'Flat file', range: `to ${compactItems(flat)}` },
+    // A workload past the pgvector ceiling is tier 3 even if a scan would fit,
+    // so the flat-file row never reads higher than the pgvector one.
+    { tier: 0, label: 'Flat file', range: `to ${compactItems(Math.min(flat, pg))}` },
     { tier: 1, label: 'Keyword index', range: 'any size' },
     { tier: 2, label: 'pgvector', range: `to ${compactItems(pg)}` },
     { tier: 3, label: 'Dedicated store', range: `${compactItems(pg)}+` },

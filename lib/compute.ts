@@ -2,6 +2,13 @@ import type { Assumptions, Footprint, Workload } from './types';
 
 const BYTES_PER_GB = 1e9;
 
+/**
+ * The time budget a flat scan gets when the reader says latency does not
+ * matter. A retrieval step that takes longer than a second is not one anyone
+ * would ship, so "any" still has a ceiling.
+ */
+export const ANY_LATENCY_BUDGET_MS = 1000;
+
 /** Item count after the twelve-month growth multiplier. */
 export function itemsAfterGrowth(w: Workload): number {
   return w.items * w.growth;
@@ -53,13 +60,13 @@ export function memoryCeiling(dims: number, a: Assumptions): number {
  * shown beside it. Dimensions therefore change the tier, which they must: a
  * million 384-dimension vectors is a quarter of the work of a million at 1536.
  *
- * With no latency target the binding constraint is memory rather than time.
+ * With no latency target the scan still gets a one second budget.
  */
 export function flatCeiling(w: Workload, a: Assumptions): number {
   const byMemory = memoryCeiling(w.dims, a);
-  if (w.latencyMs === 0) return byMemory;
+  const targetMs = w.latencyMs === 0 ? ANY_LATENCY_BUDGET_MS : w.latencyMs;
   // Solve scanMs(items) = target at the optimistic end of the throughput range.
-  const byTime = ((w.latencyMs / 1000) * throughputBounds(a).fast * 1e9) / (2 * w.dims);
+  const byTime = ((targetMs / 1000) * throughputBounds(a).fast * 1e9) / (2 * w.dims);
   return Math.min(byTime, byMemory);
 }
 

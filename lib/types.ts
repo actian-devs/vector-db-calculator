@@ -50,6 +50,11 @@ export interface Assumptions {
   hnswMemoryOverhead: number;
   /** Item count above which always-on metadata filtering starts to strain. */
   heavyFilterCeiling: number;
+  /**
+   * Share of the pgvector ceiling a workload must pass before stacked
+   * operational demands can escalate it.
+   */
+  stackingGateFraction: number;
   /** Bytes per vector component. */
   bytesPerComponentF32: number;
   bytesPerComponentInt8: number;
@@ -98,8 +103,12 @@ export interface Decision {
   flatCeiling: number;
   /** HNSW ceiling, derived from the memory budget and dimensions. */
   pgvectorCeiling: number;
+  /** Headline and lede for this verdict, including the edge variant of tier 3. */
+  copy: TierCopy;
   reasons: Reason[];
   considerations: Consideration[];
+  /** Consideration ids that stacked to produce a tier 3, empty otherwise. */
+  stacked: string[];
   whatWouldChange: string;
 }
 

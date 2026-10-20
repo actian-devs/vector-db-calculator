@@ -84,8 +84,10 @@ relax them, and do not work around them to "improve conversion".
 7. **No single capability forces a dedicated store.** Hybrid search, multi-tenancy, constant
    churn, air-gapped and edge deployment are all things Postgres does. Each is a
    `Consideration` with prose saying how Postgres meets it, not a `Reason`. Escalation needs
-   demands to stack *and* the workload to be past its flat ceiling. Air-gapped is never a
-   reason at any scale.
+   demands to stack *and* the workload to be past its flat ceiling and past
+   `stackingGateFraction` of its pgvector ceiling. Always-on filtering is one of the stackable
+   demands, counted only past `heavyFilterCeiling`; it never escalates alone. Air-gapped,
+   edge and query load are never counted.
 
 If a request conflicts with any of these, stop and raise it rather than implementing it.
 
@@ -128,7 +130,8 @@ The assumptions are physical quantities, not verdicts:
 | `ramBudgetGb` | Memory available to the index. Both ceilings scale with it. |
 | `hnswMemoryOverhead` | Graph structure on top of the raw vectors, as a multiplier. |
 | `gflopsLow` / `gflopsHigh` | Effective throughput range for a brute-force scan. |
-| `heavyFilterCeiling` | Where filtering on every query starts to strain one Postgres. |
+| `heavyFilterCeiling` | Where filtering on every query starts to strain one Postgres, and so starts counting as a stacked demand. |
+| `stackingGateFraction` | Share of the pgvector ceiling a workload must pass before stacked demands can escalate it. |
 | `bytesPerComponentF32` / `bytesPerComponentInt8` | Fixed, not user editable. |
 
 Two derived ceilings fall out of those, in `lib/compute.ts`:

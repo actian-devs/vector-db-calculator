@@ -27,6 +27,8 @@ export const DEFAULT_ASSUMPTIONS: Assumptions = {
   hnswMemoryOverhead: 1.5,
   /** Item count above which always-on metadata filtering starts to strain. */
   heavyFilterCeiling: 1_000_000,
+  /** Stacked demands escalate only past half of what one Postgres can index. */
+  stackingGateFraction: 0.5,
   bytesPerComponentF32: 4,
   bytesPerComponentInt8: 1,
   gflopsLow: 1,
@@ -75,6 +77,15 @@ export const ASSUMPTION_FIELDS: AssumptionField[] = [
     min: 1_000,
     max: 1_000_000_000,
     step: 100_000,
+  },
+  {
+    key: 'stackingGateFraction',
+    label: 'Stacked demands count above (share of pgvector ceiling)',
+    help: 'Estimate. Hybrid search, many tenants, constant churn and always-on filtering only push toward a dedicated store together, and only once the workload passes this share of what one Postgres instance can index.',
+    scale: 'factor',
+    min: 0.1,
+    max: 1,
+    step: 0.05,
   },
   {
     key: 'gflopsHigh',

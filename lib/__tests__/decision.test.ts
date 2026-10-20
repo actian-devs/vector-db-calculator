@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_ASSUMPTIONS } from '../assumptions';
 import { flatCeiling, footprint, pgvectorCeiling, scanMs } from '../compute';
-import { decide } from '../decision';
+import { decide, stackingGate } from '../decision';
 import { DEFAULT_WORKLOAD } from '../urlState';
 import type { Tier, Workload } from '../types';
 
@@ -68,14 +68,112 @@ describe('review findings stay fixed', () => {
 });
 
 /**
+ * Verdicts from the pre-launch QA audit that a skeptical engineer would have
+ * called vendor bias, or where the page contradicted itself.
+ */
+describe('QA audit verdicts stay fixed', () => {
+  const userLink: Partial<Workload> = {
+    items: 100_000,
+    growth: 100,
+    dims: 3072,
+    latencyMs: 200,
+    qps: 101,
+    filtering: 'always',
+    matching: 'hybrid',
+    changeRate: 'append',
+    tenancy: 'many',
+    residency: 'airgapped',
+    postgres: false,
+  };
+
+  it.each<[string, Partial<Workload>]>([
+    ['40K, hybrid and many tenants at 10ms', { items: 40_000, matching: 'hybrid', tenancy: 'many', latencyMs: 10 }],
+    ['200K, hybrid and many tenants', { items: 100_000, growth: 2, matching: 'hybrid', tenancy: 'many' }],
+    ['200K, churn and many tenants', { items: 100_000, growth: 2, changeRate: 'constant', tenancy: 'many' }],
+    ['1.2M, always-on filtering alone', { items: 1_200_000, filtering: 'always' }],
+    ['2M x 384, always-on filtering, on Postgres', { items: 2_000_000, dims: 384, filtering: 'always', postgres: true }],
+  ])('%s stays on Postgres', (_label, over) => {
+    expect(tierOf(over)).toBe(2);
+  });
+
+  it('escalates filtering plus hybrid at 2M x 1536 and names both', () => {
+    const d = decide(w({ items: 2_000_000, filtering: 'always', matching: 'hybrid' }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(3);
+    expect(d.stacked).toEqual(['hybrid', 'filtering']);
+    expect(d.reasons.find((r) => r.id === 'stacked-demands')?.text).toMatch(
+      /hybrid search and always-on filtering/,
+    );
+  });
+
+  it('keeps three stacked demands at 2M on Postgres at tier 3', () => {
+    expect(
+      tierOf({ items: 2_000_000, matching: 'hybrid', tenancy: 'many', changeRate: 'constant', postgres: true }),
+    ).toBe(3);
+  });
+
+  it('keeps the user link at tier 3, without claiming one change is enough', () => {
+    const d = decide(w(userLink), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(3);
+    expect(d.reasons.map((r) => r.id)).toEqual(['past-pgvector', 'stacked-demands']);
+    expect(d.whatWouldChange).toMatch(/only if/);
+    expect(d.whatWouldChange).toMatch(/184GB/);
+    expect(d.whatWouldChange).toMatch(/, and also /);
+    expect(d.whatWouldChange).not.toMatch(/^If you drop the always-on metadata filter/);
+  });
+
+  it('lets the heavy-filtering assumption take filtering out of the stack', () => {
+    const over = { items: 2_000_000, filtering: 'always', matching: 'hybrid' } as const;
+    expect(tierOf(over)).toBe(3);
+    expect(tierOf(over, { ...DEFAULT_ASSUMPTIONS, heavyFilterCeiling: 5_000_000 })).toBe(2);
+  });
+
+  it('moves the stacking gate with its assumption', () => {
+    const over = { items: 1_000_000, matching: 'hybrid', tenancy: 'many' } as const;
+    expect(tierOf(over)).toBe(2);
+    expect(tierOf(over, { ...DEFAULT_ASSUMPTIONS, stackingGateFraction: 0.2 })).toBe(3);
+    expect(stackingGate(w(over), DEFAULT_ASSUMPTIONS)).toBeGreaterThan(1_700_000);
+  });
+
+  it('points hybrid search on a flat file at a keyword index too', () => {
+    const d = decide(w({ items: 10_000, matching: 'hybrid' }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(0);
+    expect(d.reasons.map((r) => r.id)).toContain('hybrid-keyword');
+  });
+
+  it('says why a small workload is not on a flat file', () => {
+    const d = decide(w({ items: 10_000, qps: 101, latencyMs: 10 }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(2);
+    expect(d.reasons.find((r) => r.id === 'needs-index')?.text).toMatch(/over 100 queries per second/);
+  });
+
+  it('gives edge workloads an embedded-store headline at tier 3', () => {
+    const d = decide(w({ items: 10_000_000, dims: 768, residency: 'edge' }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(3);
+    expect(d.copy.headline).toMatch(/embedded/);
+  });
+
+  it('still bounds a flat scan when latency does not matter', () => {
+    const d = decide(w({ items: 1_000_000, dims: 1536, latencyMs: 0 }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(0);
+    expect(d.reasons.map((r) => r.id)).toContain('marginal-hardware');
+    expect(tierOf({ items: 10_000_000, dims: 1536, latencyMs: 0, growth: 1 }, { ...DEFAULT_ASSUMPTIONS, ramBudgetGb: 128 })).toBe(2);
+  });
+
+  it('lists high query load as a consideration', () => {
+    const d = decide(w({ items: 1_000_000, qps: 101, latencyMs: 10 }), DEFAULT_ASSUMPTIONS);
+    expect(d.considerations.map((c) => c.id)).toContain('qps');
+  });
+});
+
+/**
  * Hard rule 7: air-gapped is never a reason at any scale. It must not sneak in
  * through the stacked-demands count either, since the consideration's own prose
  * says the network boundary is not an argument for any particular database.
- * 1M x 1536 at 200ms sits past the flat ceiling and under the pgvector ceiling,
- * which is exactly where stacking decides the tier.
+ * 2M x 1536 at 200ms sits past the flat ceiling, past the stacking gate and
+ * under the pgvector ceiling, which is exactly where stacking decides the tier.
  */
 describe('air-gapped never counts toward escalation', () => {
-  const stackable = { items: 1_000_000, dims: 1536, latencyMs: 200 } as const;
+  const stackable = { items: 2_000_000, dims: 1536, latencyMs: 200 } as const;
 
   it('does not escalate air-gapped plus one other demand', () => {
     expect(
@@ -119,7 +217,8 @@ describe('air-gapped never counts toward escalation', () => {
     );
     expect(d.tier).toBe(3);
     const stacked = d.reasons.find((r) => r.id === 'stacked-demands');
-    expect(stacked?.text).toMatch(/^2 operational demands/);
+    expect(stacked?.text).toMatch(/^hybrid search and many tenants stack/);
+    expect(stacked?.text).not.toMatch(/air/);
   });
 });
 
@@ -171,7 +270,7 @@ describe('no capability alone forces a dedicated store', () => {
 
 describe('running Postgres already changes the recommendation', () => {
   const stacked: Partial<Workload> = {
-    items: 400_000,
+    items: 2_000_000,
     dims: 1536,
     latencyMs: 50,
     matching: 'hybrid',

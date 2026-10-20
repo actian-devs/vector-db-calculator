@@ -294,10 +294,12 @@ test.describe('page identity', () => {
 
 test.describe('considerations card', () => {
   test('does not claim the demands were irrelevant when they stacked', async ({ page }) => {
-    await page.goto('./?n=3&m=hybrid&t=many&p=no');
+    // 2M, past the stacking gate at half the pgvector ceiling.
+    await page.goto('./?n=3&g=2&m=hybrid&t=many&p=no');
     await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
     await page.locator('.ccard summary').click();
     await expect(page.locator('.c-intro')).toContainText('tipped the verdict');
+    await expect(page.locator('.c-intro')).toContainText('many tenants share one store');
   });
 
   test('says they did not decide it when they did not', async ({ page }) => {
