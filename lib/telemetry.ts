@@ -5,7 +5,7 @@ import type { Assumptions, Decision, Workload } from './types';
  * First-party anonymous telemetry.
  *
  * Purpose: give the team the distribution of workload shapes people evaluate,
- * as evidence for pricing decisions. Nothing here identifies a person.
+ * so the model can be checked against real use. Nothing here identifies a person.
  *
  * Rules this module enforces, and that must not be relaxed:
  *

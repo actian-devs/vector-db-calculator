@@ -8,7 +8,7 @@ import { DEFAULT_WORKLOAD } from '../urlState';
 
 /**
  * Telemetry exists to give the team the distribution of workload shapes people
- * evaluate, as evidence for pricing. These tests pin the privacy properties
+ * evaluate, to check the model against real use. These tests pin the privacy properties
  * that justify collecting it at all.
  */
 describe('telemetry privacy properties', () => {
