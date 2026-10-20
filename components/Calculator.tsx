@@ -25,12 +25,13 @@ import { NumberField } from './NumberField';
 import { ScaleGauge } from './ScaleGauge';
 import { Segmented } from './Segmented';
 import { TelemetryNotice } from './TelemetryNotice';
+import { useHydrated } from './useHydrated';
 
 const TIER_COLOUR: Record<Tier, { c: string; soft: string }> = {
   0: { c: 'var(--teal)', soft: 'var(--teal-soft)' },
   1: { c: 'var(--teal)', soft: 'var(--teal-soft)' },
   2: { c: 'var(--amber)', soft: 'var(--amber-soft)' },
-  3: { c: 'var(--blue)', soft: 'var(--blue-soft)' },
+  3: { c: 'var(--blue-deep)', soft: 'var(--blue-soft)' },
 };
 
 function Chevron() {
@@ -102,13 +103,24 @@ export function Calculator() {
     [commit, workload, assumptions],
   );
 
-  const copy = decision.copy;
+  const hydrated = useHydrated();
+  // Neutral until the browser has read the link, so crawlers and the first
+  // paint never show a verdict the link does not hold.
+  const copy = hydrated
+    ? decision.copy
+    : {
+        badge: 'VERDICT',
+        headline: 'Describe your workload to see the verdict',
+        lede: 'The verdict updates as you change any input.',
+      };
   const stackedText = listOf(
     decision.considerations
       .filter((c) => decision.stacked.includes(c.id))
       .map((c) => c.text.replace(/\.$/, '').toLowerCase()),
   );
-  const colour = TIER_COLOUR[decision.tier];
+  const colour = hydrated
+    ? TIER_COLOUR[decision.tier]
+    : { c: 'var(--ink-2)', soft: 'var(--panel)' };
   const tierVars = { '--tc': colour.c, '--tcs': colour.soft } as React.CSSProperties;
   // A custom count above the top stop sits at the top, not back at 1K.
   const stopAtOrAbove = ITEM_STEPS.findIndex((s) => s >= workload.items);
@@ -399,7 +411,7 @@ export function Calculator() {
                 <span className="badge" data-testid="tier-badge">
                   {copy.badge}
                 </span>
-                <span className="vstep">{decision.tier + 1} of 4</span>
+                {hydrated ? <span className="vstep">{decision.tier + 1} of 4</span> : null}
               </div>
               <h3 data-testid="verdict">{copy.headline}</h3>
               <p>{copy.lede}</p>
@@ -528,8 +540,9 @@ export function Calculator() {
                       Try Community Edition free
                     </a>
                     <p className="fine">
-                      Community Edition holds up to 5,000 vectors without a license, enough to
-                      try it against a sample of your data.
+                      Signing up for Community Edition starts a 30-day full-featured trial, long
+                      enough to test against your real data. Afterwards Community Edition stays
+                      free for up to 5,000 vectors.
                     </p>
                   </>
                 ) : (

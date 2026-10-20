@@ -98,7 +98,12 @@ export function InfraCostCard({ today, next, assumptions }: Props) {
         </thead>
         <tbody>
           <tr>
-            <td>Memory needed</td>
+            <td>
+              Memory to provision
+              <span className="cost-sub">
+                index x {assumptions.hnswMemoryOverhead} graph x {assumptions.headroom} headroom
+              </span>
+            </td>
             <td data-testid="cost-gb-today">{gbLabel(today.memoryGb)}</td>
             <td className="grow">{gbLabel(next.memoryGb)}</td>
           </tr>
@@ -142,9 +147,11 @@ export function InfraCostCard({ today, next, assumptions }: Props) {
       </table>
 
       <p className="fine cost-note" data-testid="cost-note">
-        Memory is vectors x HNSW overhead x headroom, both estimates. Priced{' '}
-        {PRICED_LABEL}, on-demand list prices, US regions, per decimal GB (10^9 bytes).
-        Hardware only. Not a quote.
+        Memory is raw vectors x HNSW graph overhead x headroom, both estimates. The verdict
+        compares the index without headroom against the memory you set; headroom only prices
+        it. Priced {PRICED_LABEL}, on-demand list prices, US regions, per decimal GB (10^9
+        bytes). Whole-instance price spread over its memory, so the vCPUs that come with it are
+        included. Hardware only. Not a quote.
       </p>
       {stale ? (
         <p className="cost-stale" role="status" data-testid="cost-stale">

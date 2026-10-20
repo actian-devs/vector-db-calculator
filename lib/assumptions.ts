@@ -63,7 +63,7 @@ export const ASSUMPTION_FIELDS: AssumptionField[] = [
   {
     key: 'hnswMemoryOverhead',
     label: 'HNSW graph overhead',
-    help: 'Estimate. Multiplier on raw vector size to account for the navigable graph. Raise it for higher m.',
+    help: 'Estimate. Multiplier on raw vector size for the HNSW graph links, around m=16. pgvector also keeps a copy of each vector in the table heap, so if the table must stay in memory too, raise this toward 2.5 or more.',
     scale: 'factor',
     min: 1,
     max: 5,

@@ -100,7 +100,7 @@ export function decisionRecordMarkdown(
   lines.push('| Measure | Today | In 12 months |');
   lines.push('| --- | --- | --- |');
   lines.push(
-    `| Vector memory, float32 | ${bytesLabel(today.float32Bytes)} | ${bytesLabel(next.float32Bytes)} |`,
+    `| Raw vectors, float32 | ${bytesLabel(today.float32Bytes)} | ${bytesLabel(next.float32Bytes)} |`,
   );
   lines.push(
     `| Same vectors at int8 | ${bytesLabel(today.int8Bytes)} | ${bytesLabel(next.int8Bytes)} |`,
@@ -126,7 +126,7 @@ export function decisionRecordMarkdown(
     const range = (c: MemoryCost['monthly']) => `${usd(c.low)} to ${usd(c.high)} (mid ${usd(c.mid)})`;
     lines.push('| Measure | Today | In 12 months |');
     lines.push('| --- | --- | --- |');
-    lines.push(`| Memory needed | ${gbLabel(est.today.memoryGb)} | ${gbLabel(est.inTwelveMonths.memoryGb)} |`);
+    lines.push(`| Memory to provision (index x headroom) | ${gbLabel(est.today.memoryGb)} | ${gbLabel(est.inTwelveMonths.memoryGb)} |`);
     lines.push(`| Monthly cost | ${range(est.today.monthly)} | ${range(est.inTwelveMonths.monthly)} |`);
     lines.push(`| int8 vectors only | ${range(est.today.int8Monthly)} | ${range(est.inTwelveMonths.int8Monthly)} |`);
     lines.push('');

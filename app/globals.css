@@ -10,9 +10,9 @@
   --blue: #096cf1;
   --blue-soft: #eaf2fe;
   --blue-deep: #0852ba;
-  --teal: #0e9384;
+  --teal: #0b7a6e;
   --teal-soft: #e6f5f3;
-  --amber: #b4710b;
+  --amber: #965d08;
   --amber-soft: #fbf2e3;
   --mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --sans: var(--font-sans), system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -259,12 +259,13 @@ td.grow { color: var(--tc, var(--blue)); font-weight: 700; }
 
 /* ---------- lower ---------- */
 .lower { border-top: 1px solid var(--line); background: var(--panel); }
+.lower-foot { border-top: 0; }
 .lower .in { max-width: 1340px; margin: 0 auto; padding: 56px 32px; }
 .lower h2 { font-size: 22px; margin-bottom: 18px; }
 .prose { max-width: 66ch; color: var(--ink-2); font-size: 16.5px; line-height: 1.65; display: grid; gap: 16px; }
 .prose b { color: var(--ink); font-weight: 700; }
 .groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 32px 36px; }
-.group h3 { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--blue); margin-bottom: 12px; letter-spacing: 0.03em; }
+.group h3 { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--blue-deep); margin-bottom: 12px; letter-spacing: 0.03em; }
 .group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .group a { font-size: 15px; color: var(--ink-2); text-decoration: none; line-height: 1.4; }
 .group a:hover { color: var(--ink); }
@@ -297,6 +298,10 @@ footer a { color: var(--dim); }
 
 @media (max-width: 560px) {
   /* Keep the extra vertical room, but give phones back their horizontal space. */
+  /* Two lines rather than an ellipsis, so the verdict is never cut off mid-word. */
+  .minibar b {
+    white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
   .rail .in, .lower .in, footer .in, .minibar a { padding-left: 20px; padding-right: 20px; }
   .controls, .insights { padding-left: 20px; padding-right: 20px; }
   .card { padding: 20px 18px 22px; }
@@ -342,6 +347,7 @@ footer a { color: var(--dim); }
 
 /* ---------- memory cost card ---------- */
 .cost-t { width: 100%; border-collapse: collapse; }
+.cost-sub { display: block; font-size: 12px; color: var(--dim); font-family: var(--mono); }
 .cost-t thead th {
   font-family: var(--mono); font-size: 12.5px; font-weight: 500; color: var(--dim);
   text-align: right; padding: 0 0 12px; letter-spacing: 0.03em;

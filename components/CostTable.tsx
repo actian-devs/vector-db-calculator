@@ -54,7 +54,7 @@ export function CostTable({ today, next, growth }: Props) {
         </thead>
         <tbody>
           <tr>
-            <td>Vector memory, float32</td>
+            <td>Raw vectors, float32</td>
             <td>
               <Bytes value={today.float32Bytes} />
             </td>

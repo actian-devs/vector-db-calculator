@@ -73,7 +73,7 @@ export const TIER_COPY: Record<Tier, TierCopy> = {
  */
 const EDGE_TIER_3: TierCopy = {
   badge: 'TIER 3',
-  headline: 'You need a dedicated store, most likely an embedded one',
+  headline: 'You need a dedicated, embedded vector store',
   lede: 'This is more than one Postgres instance holds on the memory you set, and on edge or on-device hardware an embedded vector store usually fits better than running a database server.',
 };
 

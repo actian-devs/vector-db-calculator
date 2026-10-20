@@ -419,6 +419,27 @@ test.describe('memory cost estimate', () => {
     await expect(page.getByTestId('cost-stale')).toHaveCount(0);
   });
 
+  for (const [label, query] of [
+    ['the default workload', './'],
+    ['a tier 3 link with every demand on', './?n=2&g=100&d=3072&l=200&q=101&f=always&m=hybrid&c=append&t=many&r=airgapped&p=no'],
+    ['the edge tier 3 headline', './?n=4&d=768&r=edge'],
+  ]) {
+    test(`fits a 375px screen for ${label}, verdict bar uncut`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 800 });
+      await page.goto(query);
+      await expect(page.locator('.minibar')).toBeVisible();
+      const { overflow, cut } = await page.evaluate(() => {
+        const b = document.querySelector('.minibar b') as HTMLElement;
+        return {
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          cut: b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1,
+        };
+      });
+      expect(overflow).toBe(false);
+      expect(cut).toBe(false);
+    });
+  }
+
   test('fits a 390px screen without sideways scrolling', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto('./?n=3&g=10');
@@ -487,5 +508,20 @@ test.describe('QA regressions', () => {
     await page.getByRole('button', { name: 'copy link' }).click();
     const copied = await page.evaluate(() => navigator.clipboard.readText());
     expect(copied).toMatch(/^http.*\?.*n=2/);
+  });
+});
+
+test.describe('before the page hydrates', () => {
+  test('the static html shows no verdict a shared link might not hold', async ({ page, request }) => {
+    await page.goto('./');
+    const html = await (await request.get(page.url())).text();
+    expect(html).toContain('Describe your workload to see the verdict');
+    expect(html).not.toContain('You don&#x27;t need a vector database yet</h3>');
+  });
+
+  test('a landmark wraps the calculator', async ({ page }) => {
+    await page.goto('./');
+    await expect(page.locator('main #controls')).toHaveCount(1);
+    await expect(page.locator('main [data-testid="verdict"]')).toHaveCount(1);
   });
 });

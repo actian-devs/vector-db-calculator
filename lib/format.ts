@@ -69,8 +69,9 @@ export function scanLabel(lowMs: number, highMs: number): string {
   return `${value} ${unit}`;
 }
 
-/** Decimal gigabytes, for example "12 GB" or "1,200 GB". */
+/** Decimal gigabytes, for example "12 GB" or "1,200 GB". Below 1 GB it drops to MB, so a small workload never reads "0 GB". */
 export function gbLabel(gb: number): string {
+  if (gb < 1) return bytesLabel(gb * 1e9);
   if (gb < 10) return `${gb.toFixed(1).replace(/\.0$/, '')} GB`;
   return `${Math.round(gb).toLocaleString('en-US')} GB`;
 }

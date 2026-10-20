@@ -58,7 +58,7 @@ export interface Assumptions {
   /** Bytes per vector component. */
   bytesPerComponentF32: number;
   bytesPerComponentInt8: number;
-  /** Effective single-threaded throughput range used for the scan estimate. */
+  /** Effective single-node throughput range used for the scan estimate. */
   gflopsLow: number;
   gflopsHigh: number;
   /** Spare memory on top of the index so the host is not run at 100%. Rule of thumb. */
@@ -118,7 +118,7 @@ export interface Footprint {
   int8Bytes: number;
   /** Multiply-adds for one brute-force scan over the whole set. */
   comparisons: number;
-  /** Order-of-magnitude range for a single-threaded brute-force scan. */
+  /** Order-of-magnitude range for a single-node brute-force scan. */
   scanMsLow: number;
   scanMsHigh: number;
 }

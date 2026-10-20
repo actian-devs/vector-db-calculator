@@ -18,7 +18,15 @@ export const metadata: Metadata = {
     title: 'Do you need a vector database?',
     description: 'Find out in 30 seconds. Sometimes the answer is no.',
     url: SITE,
-    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+    siteName: 'Actian VectorAI DB sizing tool',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'Do you need a vector database? A sizing tool whose verdict for 100K items is: you do not need one yet.',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
