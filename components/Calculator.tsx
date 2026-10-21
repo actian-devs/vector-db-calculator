@@ -160,9 +160,9 @@ export function Calculator() {
               <div className="fields">
                 <div className="f full">
                   <span className="lab" id="items-lab">
-                    Items to remember or search
+                    Vectors to store
                   </span>
-                  <span className="hint">chunks, memories, documents, rows</span>
+                  <span className="hint">one per chunk, memory or row</span>
                   <div className="sl-val">
                     <b className="mono" data-testid="items-today">
                       {fullItems(workload.items)}
@@ -385,7 +385,7 @@ export function Calculator() {
                   full
                   name="res"
                   legend="Where the data must live"
-                  hint="shapes the reading list; Postgres self-hosts anywhere, so it does not change the tier"
+                  hint="does not change the tier, since Postgres self-hosts anywhere; at tier 3 it shapes the reading list"
                   value={workload.residency}
                   onChange={(v) => set('residency', v)}
                   options={[
@@ -414,6 +414,11 @@ export function Calculator() {
               </div>
               <h3 data-testid="verdict">{copy.headline}</h3>
               <p>{copy.lede}</p>
+              {hydrated && decision.deploymentNote ? (
+                <p className="dnote" data-testid="deployment-note">
+                  {decision.deploymentNote}
+                </p>
+              ) : null}
             </div>
 
             <ScaleGauge
@@ -532,16 +537,15 @@ export function Calculator() {
                     </a>
                     <a
                       className="btn btn-ghost"
-                      href={withUtm(LINKS.community.href, campaign, 'tier-3')}
+                      href={withUtm(LINKS.trial.href, campaign, 'tier-3')}
                       rel="noopener"
                       data-outbound="true"
                     >
-                      Try Community Edition free
+                      Start a 30-day free trial
                     </a>
                     <p className="fine">
-                      Signing up for Community Edition starts a 30-day full-featured trial, long
-                      enough to test against your real data. Afterwards Community Edition stays
-                      free for up to 5,000 vectors.
+                      Signing up for Community Edition starts a 30-day full-featured trial. For
+                      an evaluation at production scale, book a demo.
                     </p>
                   </>
                 ) : (

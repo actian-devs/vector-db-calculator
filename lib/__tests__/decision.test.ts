@@ -357,3 +357,36 @@ describe('reasons and assumptions', () => {
     expect(f.scanMsLow).toBeCloseTo(200, 6);
   });
 });
+
+describe('deployment note', () => {
+  const shapes: Partial<Workload>[] = [
+    { items: 10_000, dims: 384 },
+    { items: 2_000_000, dims: 384, latencyMs: 50 },
+    { items: 1_000_000, growth: 2, matching: 'hybrid', tenancy: 'many' },
+  ];
+  const residencies = ['cloud', 'onprem', 'airgapped', 'edge'] as const;
+
+  it('never changes the tier', () => {
+    for (const shape of shapes) {
+      const base = tierOf({ ...shape, residency: 'cloud' });
+      for (const residency of residencies) expect(tierOf({ ...shape, residency })).toBe(base);
+    }
+  });
+
+  it('shows only for air-gapped and edge', () => {
+    for (const shape of shapes) {
+      for (const residency of residencies) {
+        const note = decide(w({ ...shape, residency }), DEFAULT_ASSUMPTIONS).deploymentNote;
+        if (residency === 'cloud' || residency === 'onprem') expect(note).toBeNull();
+        else expect(note).toBeTruthy();
+      }
+    }
+  });
+
+  it('points edge at an embedded store at tier 2, without changing the tier', () => {
+    const d = decide(w({ ...shapes[1], residency: 'edge' }), DEFAULT_ASSUMPTIONS);
+    expect(d.tier).toBe(2);
+    expect(d.copy.headline).toBe('pgvector will carry you for now');
+    expect(d.deploymentNote).toMatch(/embedded store/);
+  });
+});

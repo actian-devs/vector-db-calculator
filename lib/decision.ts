@@ -81,6 +81,23 @@ export function tierCopy(tier: Tier, w: Workload): TierCopy {
   return tier === 3 && w.residency === 'edge' ? EDGE_TIER_3 : TIER_COPY[tier];
 }
 
+/**
+ * A visible line under the verdict for the two deployment choices a reader is
+ * most likely to expect to change it. It never does (hard rule 7), so the line
+ * says how the verdict reads on that hardware instead.
+ */
+export function deploymentNote(tier: Tier, w: Workload): string | null {
+  if (w.residency === 'airgapped') {
+    return 'Air-gapped does not change the verdict. Postgres self-hosts with no outbound dependency.';
+  }
+  if (w.residency === 'edge') {
+    return tier === 2
+      ? 'On edge or on-device hardware, an embedded store usually fits better than a Postgres instance.'
+      : "On edge hardware the limit is the device's memory, so set the memory budget to what it actually has.";
+  }
+  return null;
+}
+
 
 function reason(id: string, text: string, dependsOn?: (keyof Assumptions)[]): Reason {
   return dependsOn ? { id, text, dependsOn } : { id, text };
@@ -368,6 +385,7 @@ function finish(
   return {
     tier,
     copy: tierCopy(tier, w),
+    deploymentNote: deploymentNote(tier, w),
     items12,
     flatCeiling: flat,
     pgvectorCeiling: pg,

@@ -96,6 +96,11 @@ export const LINKS = {
     title: 'VectorAI DB Community Edition',
     href: 'https://www.actian.com/databases/vectorai-db/community-edition/',
   },
+  // The 30-day trial starts from the Community Edition sign-up form.
+  trial: {
+    title: 'Start a 30-day free trial',
+    href: 'https://www.actian.com/databases/vectorai-db/community-edition/',
+  },
   product: {
     title: 'VectorAI DB',
     href: 'https://www.actian.com/databases/vectorai-db/',

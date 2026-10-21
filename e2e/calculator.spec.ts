@@ -525,3 +525,56 @@ test.describe('before the page hydrates', () => {
     await expect(page.locator('main [data-testid="verdict"]')).toHaveCount(1);
   });
 });
+
+test.describe('deployment note', () => {
+  const setups = [
+    { tier: 'TIER 0', url: './?' },
+    { tier: 'TIER 2', url: './?n=2&l=200&g=10' },
+    { tier: 'TIER 3', url: './?n=3&g=2&m=hybrid&t=many&p=no' },
+  ];
+  const notes: Record<string, RegExp | null> = {
+    cloud: null,
+    onprem: null,
+    airgapped: /Air-gapped does not change the verdict/,
+    edge: /edge/i,
+  };
+
+  for (const { tier: expected, url } of setups) {
+    for (const [res, note] of Object.entries(notes)) {
+      test(`${expected}, ${res}: the tier holds and the note matches`, async ({ page }) => {
+        await page.goto(`${url}&r=${res}`);
+        await expect(page.getByTestId('tier-badge')).toHaveText(expected);
+        const line = page.getByTestId('deployment-note');
+        if (note) await expect(line).toHaveText(note);
+        else await expect(line).toHaveCount(0);
+      });
+    }
+  }
+
+  test('edge at tier 2 points at an embedded store and keeps the pgvector verdict', async ({
+    page,
+  }) => {
+    await page.goto('./?n=2&l=200&g=10&r=edge');
+    await expect(page.getByTestId('verdict')).toHaveText('pgvector will carry you for now');
+    await expect(page.getByTestId('deployment-note')).toContainText('embedded store');
+  });
+});
+
+test.describe('tier 3 call to action', () => {
+  test('offers the 30-day trial with attribution and states no Community Edition limit', async ({
+    page,
+  }) => {
+    await page.goto('./?n=3&g=2&m=hybrid&t=many&p=no&utm_campaign=example');
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+    const trial = page.getByRole('link', { name: 'Start a 30-day free trial' });
+    await expect(trial).toBeVisible();
+    await expect.poll(async () => trial.getAttribute('href')).toContain('utm_campaign=example');
+
+    const href = new URL((await trial.getAttribute('href')) ?? '');
+    expect(href.pathname).toBe('/databases/vectorai-db/community-edition/');
+    expect(href.searchParams.get('utm_source')).toBe('vector-db-calculator');
+    expect(href.searchParams.get('utm_medium')).toBe('hub');
+    expect(href.searchParams.get('utm_content')).toBe('tier-3');
+    await expect(page.locator('body')).not.toContainText('5,000');
+  });
+});

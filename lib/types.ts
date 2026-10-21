@@ -105,6 +105,8 @@ export interface Decision {
   pgvectorCeiling: number;
   /** Headline and lede for this verdict, including the edge variant of tier 3. */
   copy: TierCopy;
+  /** Visible line for air-gapped and edge deployments. Never changes the tier. */
+  deploymentNote: string | null;
   reasons: Reason[];
   considerations: Consideration[];
   /** Consideration ids that stacked to produce a tier 3, empty otherwise. */
