@@ -551,12 +551,12 @@ test.describe('deployment note', () => {
     }
   }
 
-  test('edge at tier 2 points at an embedded store and keeps the pgvector verdict', async ({
-    page,
-  }) => {
+  test('edge at tier 2 gets the embedded store headline and stays tier 2', async ({ page }) => {
     await page.goto('./?n=2&l=200&g=10&r=edge');
-    await expect(page.getByTestId('verdict')).toHaveText('pgvector will carry you for now');
-    await expect(page.getByTestId('deployment-note')).toContainText('embedded store');
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 2');
+    await expect(page.getByTestId('verdict')).toHaveText(
+      'pgvector or an embedded store will carry you for now',
+    );
   });
 });
 

@@ -68,6 +68,16 @@ export const TIER_COPY: Record<Tier, TierCopy> = {
 };
 
 /**
+ * On edge hardware an embedded store is a fair answer at tier 2 as well. The
+ * tier, badge and reading list stay tier 2; only the wording changes.
+ */
+const EDGE_TIER_2: TierCopy = {
+  badge: 'TIER 2',
+  headline: 'pgvector or an embedded store will carry you for now',
+  lede: 'An HNSW index handles this shape of workload. On edge or on-device hardware an embedded vector store usually fits better than running a database server.',
+};
+
+/**
  * On edge hardware the honest tier 3 answer is an embedded store, not a
  * database server, which is what the edge consideration says too.
  */
@@ -78,7 +88,9 @@ const EDGE_TIER_3: TierCopy = {
 };
 
 export function tierCopy(tier: Tier, w: Workload): TierCopy {
-  return tier === 3 && w.residency === 'edge' ? EDGE_TIER_3 : TIER_COPY[tier];
+  if (w.residency === 'edge' && tier === 2) return EDGE_TIER_2;
+  if (w.residency === 'edge' && tier === 3) return EDGE_TIER_3;
+  return TIER_COPY[tier];
 }
 
 /**
@@ -86,14 +98,12 @@ export function tierCopy(tier: Tier, w: Workload): TierCopy {
  * most likely to expect to change it. It never does (hard rule 7), so the line
  * says how the verdict reads on that hardware instead.
  */
-export function deploymentNote(tier: Tier, w: Workload): string | null {
+export function deploymentNote(w: Workload): string | null {
   if (w.residency === 'airgapped') {
     return 'Air-gapped does not change the verdict. Postgres self-hosts with no outbound dependency.';
   }
   if (w.residency === 'edge') {
-    return tier === 2
-      ? 'On edge or on-device hardware, an embedded store usually fits better than a Postgres instance.'
-      : "On edge hardware the limit is the device's memory, so set the memory budget to what it actually has.";
+    return "On edge hardware the limit is the device's memory, so set the memory budget to what it actually has.";
   }
   return null;
 }
@@ -385,7 +395,7 @@ function finish(
   return {
     tier,
     copy: tierCopy(tier, w),
-    deploymentNote: deploymentNote(tier, w),
+    deploymentNote: deploymentNote(w),
     items12,
     flatCeiling: flat,
     pgvectorCeiling: pg,

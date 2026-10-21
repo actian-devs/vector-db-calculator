@@ -383,10 +383,12 @@ describe('deployment note', () => {
     }
   });
 
-  it('points edge at an embedded store at tier 2, without changing the tier', () => {
+  it('gives edge at tier 2 its own headline without changing the tier', () => {
     const d = decide(w({ ...shapes[1], residency: 'edge' }), DEFAULT_ASSUMPTIONS);
     expect(d.tier).toBe(2);
-    expect(d.copy.headline).toBe('pgvector will carry you for now');
-    expect(d.deploymentNote).toMatch(/embedded store/);
+    expect(d.copy.badge).toBe('TIER 2');
+    expect(d.copy.headline).toBe('pgvector or an embedded store will carry you for now');
+    const cloud = decide(w({ ...shapes[1], residency: 'cloud' }), DEFAULT_ASSUMPTIONS);
+    expect(cloud.copy.headline).toBe('pgvector will carry you for now');
   });
 });
