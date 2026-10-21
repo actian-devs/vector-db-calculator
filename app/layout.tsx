@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     title: 'Do you need a vector database?',
-    description: 'Find out in 30 seconds. Sometimes the answer is no.',
+    description: 'Find out in 30 seconds.',
     url: SITE,
     siteName: 'Actian VectorAI DB sizing tool',
     images: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Do you need a vector database?',
-    description: 'Find out in 30 seconds. Sometimes the answer is no.',
+    description: 'Find out in 30 seconds.',
     images: ['/og-image.png'],
   },
   robots: { index: true, follow: true },

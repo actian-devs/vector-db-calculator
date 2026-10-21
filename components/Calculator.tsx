@@ -142,8 +142,7 @@ export function Calculator() {
           <div className="intro">
             <h1>Do you need a vector database?</h1>
             <p>
-              Describe your agent or RAG workload. The verdict updates as you go, and
-              sometimes it is no.
+              Describe your agent or RAG workload. The verdict updates as you go.
             </p>
           </div>
 
