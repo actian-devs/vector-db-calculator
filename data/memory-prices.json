@@ -1,5 +1,5 @@
 {
-  "pricedAt": "2026-10-19",
+  "pricedAt": "2026-10-26",
   "notes": "On-demand list prices for memory-optimized instances, US regions. Rewritten weekly by scripts/refresh-prices.mjs through a reviewed pull request. Never edit by hand without updating fetchedAt and sourceUrl.",
   "entries": [
     {
@@ -10,7 +10,7 @@
       "gib": 32,
       "hourlyUsd": 0.2646,
       "sourceUrl": "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonEC2/current/us-east-1/index.csv",
-      "fetchedAt": "2026-10-19"
+      "fetchedAt": "2026-10-26"
     },
     {
       "provider": "GCP",
@@ -20,7 +20,7 @@
       "gib": 32,
       "hourlyUsd": 0.262028,
       "sourceUrl": "https://gcloud-compute.com/machine-types-regions.csv",
-      "fetchedAt": "2026-10-19"
+      "fetchedAt": "2026-10-26"
     }
   ],
   "managedPostgres": []
