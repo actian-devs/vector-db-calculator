@@ -1,4 +1,6 @@
 import { Calculator } from '@/components/Calculator';
+import { AnalyticsDisclosure } from '@/components/Consent';
+import { isGaConfigured } from '@/lib/analytics';
 import { LINKS } from '@/lib/links';
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
@@ -56,7 +58,9 @@ export default function Page() {
               VectorAI DB <span>&nbsp;/ sizing tool</span>
             </span>
           </span>
-          <span className="tagline">no third-party trackers</span>
+          <span className="tagline">
+            {isGaConfigured() ? 'analytics with consent' : 'no third-party trackers'}
+          </span>
         </div>
       </header>
 
@@ -126,7 +130,7 @@ export default function Page() {
               Actian for Developers
             </a>
             .<br />
-            No cookies and no analytics.
+            <AnalyticsDisclosure />
           </div>
         </footer>
       </div>

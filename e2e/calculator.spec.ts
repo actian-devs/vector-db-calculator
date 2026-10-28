@@ -151,22 +151,52 @@ test.describe('export', () => {
   });
 });
 
+const OTHER_TRACKERS =
+  /(doubleclick|segment\.(io|com)|hotjar|facebook\.net|connect\.facebook|clarity\.ms|plausible\.io|mixpanel|amplitude|heap(analytics)?\.(io|com)|fullstory|posthog)/i;
+const GA_HOST = /(^|\.)google-analytics\.com$|(^|\.)googletagmanager\.com$/i;
+
+async function analyticsMode(page: Page): Promise<string | null> {
+  return page.locator('html').getAttribute('data-analytics');
+}
+
+async function dataLayer(page: Page): Promise<unknown[][]> {
+  return page.evaluate(() => {
+    const layer = (window as unknown as { dataLayer?: unknown[] }).dataLayer ?? [];
+    return layer.map((entry) =>
+      Array.from(entry as ArrayLike<unknown>).map((item) =>
+        item instanceof Date ? item.toISOString() : item,
+      ),
+    );
+  });
+}
+
 test.describe('privacy claims hold at runtime', () => {
-  test('loads nothing from an analytics or tag-manager domain', async ({ page }) => {
-    // The zero-third-party-requests rule was dropped. No analytics vendor stays.
-    const TRACKERS =
-      /(google-analytics|googletagmanager|doubleclick|segment\.(io|com)|hotjar|facebook\.net|connect\.facebook|clarity\.ms|plausible\.io|mixpanel|amplitude|heap(analytics)?\.(io|com)|fullstory|posthog)/i;
-    const hits: string[] = [];
+  test('loads no tracker beyond GA4, and GA4 only when a measurement ID is set', async ({ page }) => {
+    const other: string[] = [];
+    const ga: string[] = [];
     page.on('request', (r) => {
-      if (TRACKERS.test(new URL(r.url()).host)) hits.push(r.url());
+      const host = new URL(r.url()).host;
+      if (OTHER_TRACKERS.test(host)) other.push(r.url());
+      if (GA_HOST.test(host)) ga.push(r.url());
     });
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    expect(hits).toEqual([]);
+    expect(other).toEqual([]);
+    const mode = await analyticsMode(page);
+    const html = await page.content();
+    if (mode === 'ga4') {
+      expect(html).toContain('googletagmanager.com/gtag/js');
+      expect(ga.length).toBeGreaterThan(0);
+    } else {
+      expect(mode).toBe('off');
+      expect(html).not.toContain('googletagmanager');
+      expect(html).not.toContain('google-analytics');
+      expect(ga).toEqual([]);
+    }
   });
 
-  test('sets no cookies', async ({ page, context }) => {
-    await page.goto('./');
+  test('sets no cookies before a consent choice', async ({ page, context }) => {
+    await page.goto('./?utm_campaign=vectordb_calculator_oct');
     await page.waitForLoadState('networkidle');
     expect(await context.cookies()).toEqual([]);
   });
@@ -180,7 +210,177 @@ test.describe('privacy claims hold at runtime', () => {
 
   test('the footer claim matches what the build actually does', async ({ page }) => {
     await page.goto('./');
-    await expect(page.locator('footer')).toContainText('No cookies and no analytics.');
+    const mode = await analyticsMode(page);
+    if (mode === 'ga4') {
+      await expect(page.locator('footer')).toContainText(
+        'Optional Google Analytics. Cookies stay off until you accept.',
+      );
+      await expect(page.locator('footer')).not.toContainText('No cookies and no analytics.');
+      await expect(page.locator('.tagline')).toHaveText('analytics with consent');
+      await expect(page.getByTestId('consent-banner')).toBeVisible();
+    } else {
+      await expect(page.locator('footer')).toContainText('No cookies and no analytics.');
+      await expect(page.locator('.tagline')).toHaveText('no third-party trackers');
+      await expect(page.getByTestId('consent-banner')).toHaveCount(0);
+    }
+  });
+
+  test('loads without console errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    await page.goto('./?utm_source=newsletter&utm_medium=email&utm_campaign=vectordb_calculator_oct');
+    await page.waitForLoadState('networkidle');
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('GA4 consent and events', () => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    await page.goto('./');
+    if ((await analyticsMode(page)) !== 'ga4') {
+      testInfo.skip(true, 'measurement ID is still the placeholder');
+    }
+  });
+
+  test('a pageview keeps the subpath and the incoming campaign, with storage denied', async ({
+    page,
+    context,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(
+      './?n=5&utm_source=newsletter&utm_medium=email&utm_campaign=vectordb_calculator_oct',
+    );
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+    await expect(page.getByTestId('consent-banner')).toBeVisible();
+    expect(await context.cookies()).toEqual([]);
+
+    const layer = await dataLayer(page);
+    const defaults = layer.find((entry) => entry[0] === 'consent' && entry[1] === 'default');
+    expect(defaults?.[2]).toMatchObject({
+      analytics_storage: 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
+    const config = layer.find((entry) => entry[0] === 'config');
+    const here = new URL(page.url());
+    expect(config?.[2]).toMatchObject({
+      page_location: here.href,
+      page_path: `${here.pathname}${here.search}`,
+      linker: { domains: ['actian.com', 'www.actian.com'], accept_incoming: true },
+    });
+    expect(String((config?.[2] as { page_location: string }).page_location)).toContain(
+      'utm_campaign=vectordb_calculator_oct',
+    );
+    expect(String((config?.[2] as { page_location: string }).page_location)).toContain(
+      'utm_source=newsletter',
+    );
+
+    await expect
+      .poll(async () => {
+        const events = (await dataLayer(page)).filter(
+          (entry) => entry[0] === 'event' && entry[1] === 'calculator_result',
+        );
+        return events.map((entry) => (entry[2] as { tier: string }).tier);
+      })
+      .toEqual(['tier-3']);
+    expect(errors).toEqual([]);
+  });
+
+  test('accept is remembered, decline sets nothing, and the choice can be changed', async ({
+    page,
+    context,
+  }) => {
+    await page.goto('./?utm_campaign=vectordb_calculator_oct');
+    await page.getByTestId('consent-decline').click();
+    await expect(page.getByTestId('consent-banner')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('vdbc:ga-consent'))).toBe('denied');
+    expect(await context.cookies()).toEqual([]);
+    const denied = (await dataLayer(page)).filter(
+      (entry) => entry[0] === 'consent' && entry[1] === 'update',
+    );
+    expect(denied.at(-1)?.[2]).toMatchObject({ analytics_storage: 'denied', ad_storage: 'denied' });
+
+    await page.reload();
+    await expect(page.getByTestId('consent-banner')).toHaveCount(0);
+    await expect(page.getByTestId('consent-reopen')).toBeVisible();
+
+    await page.getByTestId('consent-reopen').click();
+    await expect(page.getByTestId('consent-banner')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('vdbc:ga-consent'))).toBeNull();
+
+    await page.getByTestId('consent-accept').click();
+    await expect(page.getByTestId('consent-banner')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('vdbc:ga-consent'))).toBe('granted');
+
+    await page.reload();
+    await expect(page.getByTestId('consent-banner')).toHaveCount(0);
+    const granted = (await dataLayer(page)).filter(
+      (entry) => entry[0] === 'consent' && entry[1] === 'update',
+    );
+    expect(granted[0]?.[2]).toMatchObject({
+      analytics_storage: 'granted',
+      ad_storage: 'granted',
+      ad_user_data: 'granted',
+      ad_personalization: 'granted',
+    });
+    const updateAt = (await dataLayer(page)).findIndex(
+      (entry) => entry[0] === 'consent' && entry[1] === 'update',
+    );
+    const configAt = (await dataLayer(page)).findIndex((entry) => entry[0] === 'config');
+    expect(updateAt).toBeGreaterThanOrEqual(0);
+    expect(updateAt).toBeLessThan(configAt);
+  });
+
+  test('a tier change and an outbound click are events with tier and destination', async ({
+    page,
+  }) => {
+    await page.goto('./?utm_source=newsletter&utm_medium=email&utm_campaign=vectordb_calculator_oct');
+    await page.getByTestId('consent-accept').click();
+    await setItems(page, 4); // 10M, tier 3
+    await expect(page.getByTestId('tier-badge')).toHaveText('TIER 3');
+
+    await expect
+      .poll(async () =>
+        (await dataLayer(page))
+          .filter((entry) => entry[0] === 'event')
+          .map((entry) => entry[1]),
+      )
+      .toEqual(expect.arrayContaining(['calculator_started', 'calculator_result']));
+
+    await expect
+      .poll(async () =>
+        (await dataLayer(page))
+          .filter((entry) => entry[0] === 'event' && entry[1] === 'calculator_result')
+          .map((entry) => (entry[2] as { tier: string }).tier),
+      )
+      .toContain('tier-3');
+
+    const link = page.locator('a[data-outbound="true"]').first();
+    await link.evaluate((anchor) => {
+      anchor.addEventListener('click', (event) => event.preventDefault());
+    });
+    await link.click();
+
+    await expect
+      .poll(async () => {
+        const hit = (await dataLayer(page)).find(
+          (entry) => entry[0] === 'event' && entry[1] === 'outbound_cta',
+        );
+        return hit?.[2] ?? null;
+      })
+      .toMatchObject({ tier: 'tier-3' });
+
+    const outbound = (await dataLayer(page)).find(
+      (entry) => entry[0] === 'event' && entry[1] === 'outbound_cta',
+    );
+    const destination = (outbound?.[2] as { destination: string }).destination;
+    expect(destination).not.toContain('?');
+    expect(destination).toContain('.');
   });
 });
 
@@ -210,8 +410,8 @@ test.describe('outbound links', () => {
       expect(q.get('utm_source')).toBe('vector-db-calculator');
       expect(q.get('utm_medium')).toBe('hub');
       expect(q.get('utm_campaign')).toBe('example');
-      // The tier the reader actually saw, so Actian's own analytics can tell
-      // which verdict drove the click without any tracking on this page.
+      // The tier the reader actually saw, carried on the link itself. GA4 records
+      // the same click as outbound_cta once a measurement ID is set.
       expect(q.get('utm_content')).toMatch(/^tier-[0-3]$/);
     }
   });

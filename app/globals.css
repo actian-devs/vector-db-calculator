@@ -404,3 +404,32 @@ footer a { color: var(--dim); }
 }
 .ch-key { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; margin: 0 0 12px; }
 .ch-key i { flex: none; width: 16px; height: 2px; border-radius: 1px; background: var(--blue); }
+
+/* ---------- analytics consent ---------- */
+.consent {
+  position: fixed;
+  z-index: 70;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  margin-inline: auto;
+  max-width: 520px;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px -16px rgba(21, 24, 30, 0.45);
+  padding: 16px 16px 14px;
+  display: grid;
+  gap: 12px;
+}
+.consent p { font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+.consent-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.consent-actions .btn { display: inline-block; width: auto; padding: 8px 14px; font-size: 14.5px; }
+.consent-actions .btn-primary { border: 0; }
+.consent-reopen {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  text-decoration: underline; cursor: pointer;
+}

@@ -45,6 +45,7 @@ components.
 | `lib/urlState.ts` | Encode and decode the whole state to the query string. |
 | `lib/exportRecord.ts` | Markdown and JSON decision records. |
 | `lib/telemetry.ts` | First-party anonymous telemetry. Read its header before touching it. |
+| `lib/analytics.ts` | GA4 measurement ID, Consent Mode, and event names. Inert while the ID is the placeholder. |
 
 Components are presentational. `components/Calculator.tsx` owns state and wires the model to
 the UI. There is one derivation path: state changes, `decide()` runs, everything re-renders
@@ -97,21 +98,26 @@ failure there as a regression in the argument, not a stale expectation.
 The product this page promotes is sold on data sovereignty, so the page has to hold to the
 same standard.
 
-- **No cookies and no analytics vendor.** No Google Analytics, no tag manager, no Segment,
-  no Hotjar, no ad or tracking pixel. An end-to-end test asserts the page sets no cookies and
-  loads nothing from a known analytics or tag-manager domain. Those tests are the contract.
-  Fonts are self-hosted from `fonts/` and nothing currently loads from another origin, so
-  prefer to keep it that way unless there is a reason.
-- **Telemetry is first-party, anonymous and off by default.** `lib/telemetry.ts` sends the
-  workload shape and the resulting tier so the team can see what people actually size for.
-  It is inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors
-  Do Not Track and Global Privacy Control, uses no cookies and no persistent identifier, and
-  offers an opt-out. Do not add fields that could identify a person. The memory cost inputs
+- **Google Analytics 4 is the only analytics vendor, and it ships inert.** The measurement
+  ID is `GA_MEASUREMENT_ID` in `lib/analytics.ts`. While it is the placeholder
+  `G-XXXXXXXXXX`, the page loads no tag, sets no analytics cookie, and shows no consent
+  prompt, and the footer stays "No cookies and no analytics." A real ID (GA4 Admin, Data
+  streams, on the "Actian - GA4" property) loads gtag.js with Consent Mode v2: analytics
+  and ad storage default to denied, the prompt can grant them, and the choice is remembered
+  in localStorage. No other vendor: no extra tag manager, no Segment, no Hotjar, no ad
+  pixel. End-to-end tests assert that split. Fonts stay self-hosted.
+- **The first-party telemetry beacon is unchanged.** `lib/telemetry.ts` sends the workload
+  shape and the resulting tier so the team can see what people actually size for. It is
+  inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors Do Not Track and Global
+  Privacy Control, uses no cookies and no persistent identifier, and offers an opt-out.
+  Do not add fields that could identify a person. The memory cost inputs
   (`COST_ASSUMPTIONS`) are never sent, not even their names, and a unit test checks it.
-- **Whatever the page claims must be true.** The footer says "No cookies and no analytics"
-  and a test checks it. If you change what the page does, change the claim in the
-  same commit. The telemetry disclosure renders only when an endpoint is configured, so the
-  page never says it sends something it does not send.
+  Do not route GA4 through this module. GA events carry the tier and an outbound
+  destination, from the same calculator updates, and nothing else.
+- **Whatever the page claims must be true.** The footer claim follows whether GA4 is
+  configured, and a test checks it. If you change what the page does, change the claim in
+  the same commit. The telemetry disclosure renders only when an endpoint is configured, so
+  the page never says it sends something it does not send.
 
 ## Changing the model
 
