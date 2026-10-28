@@ -68,9 +68,11 @@ afterEach(() => {
 
 describe('measurement ID', () => {
   it('treats the placeholder as off and a blank or Universal ID as off', () => {
-    expect(
-      GA_MEASUREMENT_ID === GA_MEASUREMENT_ID_PLACEHOLDER || isGaConfigured(GA_MEASUREMENT_ID),
-    ).toBe(true);
+    // Widen the literal so filling in a real measurement ID does not fail typecheck.
+    const configuredId: string = GA_MEASUREMENT_ID;
+    expect(configuredId === GA_MEASUREMENT_ID_PLACEHOLDER || isGaConfigured(configuredId)).toBe(
+      true,
+    );
     expect(isGaConfigured(GA_MEASUREMENT_ID_PLACEHOLDER)).toBe(false);
     expect(analyticsBootstrap(GA_MEASUREMENT_ID_PLACEHOLDER)).toBeNull();
     expect(analyticsBootstrap('')).toBeNull();
