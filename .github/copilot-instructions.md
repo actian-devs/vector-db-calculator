@@ -11,15 +11,17 @@ the DOM, so it stays unit testable and reusable. Business rules go in `lib/`, ne
 components. There is one derivation path: state changes, `decide()` runs, the UI re-renders
 from its result.
 
-**No cookies and no analytics vendor.** No Google Analytics, no tag manager, no tracking pixel.
-Fonts are self-hosted through `next/font/local`, and nothing loads from another origin today, so
-keep it that way. End-to-end tests assert the page sets no cookies and loads nothing from an
-analytics or tag-manager domain. Those tests are the contract, not a formality.
+**Google Analytics 4 is the only analytics vendor.** The measurement ID is
+`GA_MEASUREMENT_ID` in `lib/analytics.ts` (the ID actian.com already loads). Consent Mode v2
+keeps storage denied until the visitor accepts. The placeholder `G-XXXXXXXXXX` loads nothing.
+No other vendor and no tracking pixel. Fonts stay self-hosted. End-to-end tests assert that
+cookies stay unset before consent, and that input changes update the URL without another
+pageview. Outbound UTMs are unchanged.
 
 **Telemetry is first-party, anonymous, off by default.** It is inert unless
 `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honours Do Not Track and Global Privacy Control, uses
 no cookies or persistent identifier, and has an opt-out. Never add a field that could identify
-a person.
+a person. Do not route GA4 through it.
 
 **Whatever the page claims must be true.** If you change what it does, change the claim in the
 same commit. A test checks the footer wording.

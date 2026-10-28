@@ -1,13 +1,21 @@
 'use client';
 
+import { replaceUrl } from './analytics';
+
 /**
  * The query string is the single source of truth for the whole tool.
  *
  * Holding the same state in React as well would mean two things to keep in
  * step. Instead the URL is the store, React subscribes to it through
- * useSyncExternalStore, and every edit rewrites the URL with replaceState, so
- * edits add no history entries. That guarantees a shared link reproduces
- * exactly what the author saw.
+ * useSyncExternalStore, and every edit rewrites the URL, so edits add no
+ * history entries. That guarantees a shared link reproduces exactly what the
+ * author saw.
+ *
+ * The write goes through replaceUrl, which calls the native replaceState
+ * captured before gtag.js loads. Calling history.replaceState itself would be
+ * a page_view under enhanced measurement, and that setting is not ours to turn
+ * off. The address bar still updates, so a copied URL still reproduces the
+ * verdict.
  */
 
 const listeners = new Set<() => void>();
@@ -38,7 +46,7 @@ export function getServerSearch(): string {
 }
 
 export function replaceSearch(nextHref: string): void {
-  window.history.replaceState(null, '', nextHref);
+  replaceUrl(nextHref);
   emit();
 }
 

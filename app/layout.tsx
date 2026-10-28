@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
+import { ConsentBanner } from '@/components/Consent';
+import { GA_MEASUREMENT_ID, analyticsBootstrap, isGaConfigured } from '@/lib/analytics';
 import { archivo, jetbrains } from './fonts';
 import './globals.css';
+
+const gaBootstrap = analyticsBootstrap(GA_MEASUREMENT_ID);
 
 // SITE already carries the base path, and Next resolves metadata URLs by
 // appending to metadataBase's path, so image paths below must not repeat it.
@@ -45,8 +50,20 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${jetbrains.variable}`}>
-      <body>{children}</body>
+    <html
+      lang="en"
+      data-analytics={isGaConfigured() ? 'ga4' : 'off'}
+      className={`${archivo.variable} ${jetbrains.variable}`}
+    >
+      <body>
+        {gaBootstrap ? (
+          <Script id="ga4-bootstrap" strategy="beforeInteractive">
+            {gaBootstrap}
+          </Script>
+        ) : null}
+        {children}
+        <ConsentBanner />
+      </body>
     </html>
   );
 }

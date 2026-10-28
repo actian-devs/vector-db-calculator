@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 
+import {
+  isGaConfigured,
+  RESULT_SETTLE_MS,
+  trackCalculatorStarted,
+  trackOutboundCta,
+  trackRecommendation,
+} from '@/lib/analytics';
 import { footprint, itemsAfterGrowth, memoryCost } from '@/lib/compute';
 import { decide, hasMemoryEstimate, listOf } from '@/lib/decision';
 import { fullItems } from '@/lib/format';
@@ -64,16 +71,20 @@ export function Calculator() {
   );
   const customDims = !STANDARD_DIMS.includes(workload.dims);
 
-  const commit = useCallback((w: Workload, a: Assumptions) => {
-    replaceSearch(mergeIntoLocation(getHref(), w, a));
-  }, []);
+  const decision = useMemo(() => decide(workload, assumptions), [workload, assumptions]);
+
+  const commit = useCallback(
+    (w: Workload, a: Assumptions) => {
+      trackCalculatorStarted(decision.tier);
+      replaceSearch(mergeIntoLocation(getHref(), w, a));
+    },
+    [decision.tier],
+  );
 
   const setAssumptions = useCallback(
     (a: Assumptions) => commit(workload, a),
     [commit, workload],
   );
-
-  const decision = useMemo(() => decide(workload, assumptions), [workload, assumptions]);
   const today = useMemo(
     () => footprint(workload.items, workload.dims, assumptions),
     [workload.items, workload.dims, assumptions],
@@ -93,6 +104,9 @@ export function Calculator() {
     [priced, decision.items12, workload.dims, assumptions],
   );
 
+  // First-party telemetry and GA4 share this update. The beacon keeps its own
+  // payload and stays off without an endpoint. GA4, once a measurement ID is
+  // set, records only the tier, from the effect below.
   useEffect(() => {
     recordEvaluation(workload, assumptions, decision, campaign);
   }, [workload, assumptions, decision, campaign]);
@@ -104,6 +118,26 @@ export function Calculator() {
   );
 
   const hydrated = useHydrated();
+
+  useEffect(() => {
+    if (!hydrated || !isGaConfigured()) return;
+    const timer = window.setTimeout(() => trackRecommendation(decision.tier), RESULT_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [hydrated, decision.tier]);
+
+  useEffect(() => {
+    if (!isGaConfigured()) return;
+    const onClick = (event: MouseEvent) => {
+      if (event.defaultPrevented) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest('a[data-outbound="true"]');
+      if (!(anchor instanceof HTMLAnchorElement) || !anchor.href) return;
+      trackOutboundCta(anchor.href, decision.tier);
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [decision.tier]);
   // Neutral until the browser has read the link, so crawlers and the first
   // paint never show a verdict the link does not hold.
   const copy = hydrated
