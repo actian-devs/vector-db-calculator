@@ -11,11 +11,12 @@ the DOM, so it stays unit testable and reusable. Business rules go in `lib/`, ne
 components. There is one derivation path: state changes, `decide()` runs, the UI re-renders
 from its result.
 
-**Google Analytics 4 is the only analytics vendor, and it ships inert.** The measurement ID is
-`GA_MEASUREMENT_ID` in `lib/analytics.ts`. The placeholder loads nothing. A real ID loads
-gtag.js under Consent Mode v2 (storage denied until the visitor accepts). No other vendor, no
-tag manager container, no tracking pixel. Fonts stay self-hosted. End-to-end tests assert that
-split, including that cookies stay unset before consent.
+**Google Analytics 4 is the only analytics vendor.** The measurement ID is
+`GA_MEASUREMENT_ID` in `lib/analytics.ts` (the ID actian.com already loads). Consent Mode v2
+keeps storage denied until the visitor accepts. The placeholder `G-XXXXXXXXXX` loads nothing.
+No other vendor and no tracking pixel. Fonts stay self-hosted. End-to-end tests assert that
+cookies stay unset before consent, and that input changes update the URL without another
+pageview. Outbound UTMs are unchanged.
 
 **Telemetry is first-party, anonymous, off by default.** It is inert unless
 `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honours Do Not Track and Global Privacy Control, uses

@@ -15,6 +15,7 @@ import {
   gaCookieNames,
   isGaConfigured,
   readStoredConsent,
+  replaceUrl,
   resetAnalyticsForTests,
   storeConsent,
   tierParam,
@@ -67,12 +68,9 @@ afterEach(() => {
 });
 
 describe('measurement ID', () => {
-  it('treats the placeholder as off and a blank or Universal ID as off', () => {
-    // Widen the literal so filling in a real measurement ID does not fail typecheck.
-    const configuredId: string = GA_MEASUREMENT_ID;
-    expect(configuredId === GA_MEASUREMENT_ID_PLACEHOLDER || isGaConfigured(configuredId)).toBe(
-      true,
-    );
+  it('uses the ID actian.com already loads, and treats the placeholder as off', () => {
+    expect(GA_MEASUREMENT_ID).toBe('G-NEXL6XLL0Q');
+    expect(isGaConfigured()).toBe(true);
     expect(isGaConfigured(GA_MEASUREMENT_ID_PLACEHOLDER)).toBe(false);
     expect(analyticsBootstrap(GA_MEASUREMENT_ID_PLACEHOLDER)).toBeNull();
     expect(analyticsBootstrap('')).toBeNull();
@@ -208,6 +206,37 @@ describe('bootstrap', () => {
         src: `https://www.googletagmanager.com/gtag/js?id=${REAL_ID}`,
       },
     ]);
+    const source = analyticsBootstrap(REAL_ID);
+    expect(source?.indexOf('__vdbcReplaceState')).toBeGreaterThan(-1);
+    expect(source?.indexOf('__vdbcReplaceState')).toBeLessThan(source?.indexOf('appendChild') ?? -1);
+  });
+
+  it('saves replaceState before gtag can wrap it, and later edits miss that wrap', () => {
+    const nativeCalls: unknown[][] = [];
+    const native = function (_state: unknown, _title: string, url?: string) {
+      nativeCalls.push([url]);
+    };
+    const source = analyticsBootstrap(REAL_ID);
+    const win: Record<string, unknown> = {
+      location: { href: PAGES_URL, pathname: '/vector-db-calculator/', search: '' },
+      localStorage: { getItem: () => null },
+      history: { replaceState: native },
+      document: {
+        createElement: () => ({ async: false, src: '' }),
+        head: { appendChild: () => undefined },
+      },
+    };
+    win.window = win;
+    runInNewContext(source as string, win);
+
+    let wrapped = 0;
+    (win.history as { replaceState: (...args: unknown[]) => void }).replaceState = () => {
+      wrapped += 1;
+    };
+    const saved = win.__vdbcReplaceState as (state: unknown, title: string, url?: string) => void;
+    saved(null, '', '/vector-db-calculator/?n=4');
+    expect(wrapped).toBe(0);
+    expect(nativeCalls).toEqual([['/vector-db-calculator/?n=4']]);
   });
 
   it('applies a stored grant before the pageview and a stored denial as an update', () => {
@@ -246,6 +275,33 @@ describe('bootstrap', () => {
     expect(
       ((win.dataLayer as unknown[]) ?? []).filter((entry) => Array.from(entry as ArrayLike<unknown>)[0] === 'config'),
     ).toHaveLength(1);
+  });
+});
+
+describe('replaceUrl', () => {
+  it('uses the saved native method and ignores a later history.replaceState wrap', () => {
+    const nativeCalls: unknown[][] = [];
+    const wrappedCalls: unknown[][] = [];
+    const history: { replaceState: (...args: unknown[]) => void } = {
+      replaceState: (...args) => nativeCalls.push(args),
+    };
+    const saved = history.replaceState.bind(history);
+    history.replaceState = (...args) => wrappedCalls.push(args);
+    vi.stubGlobal('window', { __vdbcReplaceState: saved, history });
+
+    replaceUrl('/vector-db-calculator/?n=4&utm_campaign=vectordb_calculator_oct');
+
+    expect(wrappedCalls).toEqual([]);
+    expect(nativeCalls).toEqual([[null, '', '/vector-db-calculator/?n=4&utm_campaign=vectordb_calculator_oct']]);
+  });
+
+  it('falls back to history.replaceState when gtag never loaded', () => {
+    const calls: unknown[][] = [];
+    vi.stubGlobal('window', {
+      history: { replaceState: (...args: unknown[]) => calls.push(args) },
+    });
+    replaceUrl('/?n=2');
+    expect(calls).toEqual([[null, '', '/?n=2']]);
   });
 });
 

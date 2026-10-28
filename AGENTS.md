@@ -98,14 +98,16 @@ failure there as a regression in the argument, not a stale expectation.
 The product this page promotes is sold on data sovereignty, so the page has to hold to the
 same standard.
 
-- **Google Analytics 4 is the only analytics vendor, and it ships inert.** The measurement
-  ID is `GA_MEASUREMENT_ID` in `lib/analytics.ts`. While it is the placeholder
-  `G-XXXXXXXXXX`, the page loads no tag, sets no analytics cookie, and shows no consent
-  prompt, and the footer stays "No cookies and no analytics." A real ID (GA4 Admin, Data
-  streams, on the "Actian - GA4" property) loads gtag.js with Consent Mode v2: analytics
-  and ad storage default to denied, the prompt can grant them, and the choice is remembered
-  in localStorage. No other vendor: no extra tag manager, no Segment, no Hotjar, no ad
-  pixel. End-to-end tests assert that split. Fonts stay self-hosted.
+- **Google Analytics 4 is the only analytics vendor.** The measurement ID is
+  `GA_MEASUREMENT_ID` in `lib/analytics.ts` (`G-NEXL6XLL0Q`, the ID actian.com's public
+  tag already loads). Consent Mode v2 defaults analytics and ad storage to denied, the
+  prompt can grant them, and the choice is remembered in localStorage. The placeholder
+  `G-XXXXXXXXXX` still loads nothing. No other vendor: no extra tag manager, no Segment,
+  no Hotjar, no ad pixel. End-to-end tests assert that split. Fonts stay self-hosted.
+  URL edits call the native `replaceState` captured before gtag.js loads, so enhanced
+  measurement does not count each input as a pageview. Outbound UTMs stay in
+  `lib/links.ts`. The linker is configured, and cross-domain stitching needs an admin
+  to list this host later. It is not required for campaign attribution.
 - **The first-party telemetry beacon is unchanged.** `lib/telemetry.ts` sends the workload
   shape and the resulting tier so the team can see what people actually size for. It is
   inert unless `NEXT_PUBLIC_TELEMETRY_ENDPOINT` is set, honors Do Not Track and Global

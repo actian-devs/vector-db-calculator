@@ -28,6 +28,17 @@ function parseCompact(text: string): number {
   return Number(m[1]) * { K: 1e3, M: 1e6, B: 1e9 }[m[2] as 'K' | 'M' | 'B'];
 }
 
+// The consent card sits over the bottom of the page. Calculator tests store a
+// denial first so the card is not what receives the click. Consent tests opt out
+// of this and start from a visitor who has not chosen.
+test.beforeEach(async ({ page }, testInfo) => {
+  const title = testInfo.titlePath.join(' ');
+  if (title.includes('privacy claims') || title.includes('GA4 consent')) return;
+  await page.addInitScript(() => {
+    localStorage.setItem('vdbc:ga-consent', 'denied');
+  });
+});
+
 test.describe('verdicts', () => {
   test('a small quiet workload is told it does not need one', async ({ page }) => {
     await page.goto('./');
@@ -381,6 +392,54 @@ test.describe('GA4 consent and events', () => {
     const destination = (outbound?.[2] as { destination: string }).destination;
     expect(destination).not.toContain('?');
     expect(destination).toContain('.');
+  });
+
+  test('editing the workload updates the shareable URL and does not send another page_view', async ({
+    page,
+  }) => {
+    const hits: string[] = [];
+    page.on('request', (request) => {
+      const url = request.url();
+      const body = request.postData() ?? '';
+      if (url.includes('en=page_view') || body.includes('en=page_view')) hits.push(url);
+    });
+
+    await page.goto('./?utm_source=newsletter&utm_medium=email&utm_campaign=vectordb_calculator_oct');
+    await page.getByTestId('consent-accept').click();
+    // gtag.js wraps history.replaceState once its config arrives. That wrap is
+    // what would turn an input into a page_view. Wait until it is installed,
+    // then let the landing hit finish.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => !/\[native code\]/.test(Function.prototype.toString.call(history.replaceState)),
+          ),
+        { timeout: 15000 },
+      )
+      .toBe(true);
+    await expect.poll(() => hits.length, { timeout: 15000 }).toBeGreaterThan(0);
+    await page.waitForTimeout(1500);
+    const settled = hits.length;
+
+    await setItems(page, 4);
+    await pick(page, 'growth', '10x');
+    await pick(page, 'filter', 'always');
+    await expect.poll(() => page.url()).toContain('n=4');
+    await expect.poll(() => page.url()).toContain('g=10');
+    await expect.poll(() => page.url()).toContain('f=always');
+    await expect.poll(() => page.url()).toContain('utm_campaign=vectordb_calculator_oct');
+    await page.waitForTimeout(3000);
+    expect(hits.length).toBe(settled);
+
+    // The wrapped method still reports a page_view. This is the control: the
+    // same URL change, done the way gtag is listening, is counted.
+    await page.evaluate(() => {
+      const url = new URL(location.href);
+      url.searchParams.set('probe', 'history');
+      history.replaceState(null, '', `${url.pathname}${url.search}`);
+    });
+    await expect.poll(() => hits.length, { timeout: 10000 }).toBeGreaterThan(settled);
   });
 });
 

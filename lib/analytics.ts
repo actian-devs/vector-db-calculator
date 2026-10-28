@@ -3,19 +3,21 @@ import type { Tier } from './types';
 /**
  * Google Analytics 4 for the sizing calculator.
  *
- * The measurement ID below is the only switch. It must be the web stream in
- * the existing "Actian - GA4" property (property id 251080951): Admin, Data
- * streams, Measurement ID. While it is still the placeholder, this module
- * loads nothing and sends nothing, and the page keeps its "no analytics" claim.
+ * The measurement ID is the one actian.com already loads from its public tag
+ * container (GTM-5Z7WSBB). There is no admin access to that property. While
+ * the constant is the placeholder G-XXXXXXXXXX, this module loads nothing.
  *
- * Cross-domain: the linker decorates links to actian.com and www.actian.com.
- * That stream must also list actian-devs.github.io under Configure your
- * domains, or the session breaks when a visitor continues to actian.com.
+ * Cross-domain: the linker still names actian.com and www.actian.com. Without
+ * actian-devs.github.io on the property's domain list, actian.com ignores the
+ * linker and starts a new session. Outbound links keep their UTMs, so that new
+ * session is still attributed to this calculator and to the incoming campaign.
  *
- * The calculator rewrites the query string on every input. In the stream's
- * enhanced measurement settings, turn off page changes based on browser
- * history events, or each input is counted as a pageview. The only pageview
- * this module sends is the one on load, with the full URL (base path and UTMs).
+ * The calculator rewrites the query string on every input. gtag's enhanced
+ * measurement listens to history.replaceState and would count each edit as a
+ * pageview, and that setting cannot be turned off from here. The bootstrap
+ * saves the native replaceState before gtag.js loads, and the URL store calls
+ * that saved function, so the address bar stays shareable and gtag never sees
+ * the edit. The only pageview this module sends is the one on load.
  *
  * First-party telemetry in ./telemetry.ts is a separate system. It stays inert
  * unless its own endpoint is set, and it keeps its own payload rules. GA4 is
@@ -29,8 +31,11 @@ import type { Tier } from './types';
  *   outbound_cta       { tier, destination }  destination is host + path
  */
 
-/** Replace with the web stream measurement ID. Placeholder sends nothing. */
-export const GA_MEASUREMENT_ID = 'G-XXXXXXXXXX';
+/**
+ * Measurement ID from actian.com's public container GTM-5Z7WSBB.
+ * Set this back to GA_MEASUREMENT_ID_PLACEHOLDER to load nothing.
+ */
+export const GA_MEASUREMENT_ID = 'G-NEXL6XLL0Q';
 
 export const GA_MEASUREMENT_ID_PLACEHOLDER = 'G-XXXXXXXXXX';
 
@@ -140,12 +145,33 @@ window.__vdbcGa || (window.__vdbcGa = 1, (function () {
     page_path: window.location.pathname + window.location.search,
     linker: { domains: ${domains}, accept_incoming: true }
   });
+  if (window.history && typeof window.history.replaceState === 'function') {
+    window.__vdbcReplaceState = window.history.replaceState.bind(window.history);
+  }
   var s = window.document.createElement('script');
   s.async = true;
   s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
   window.document.head.appendChild(s);
 })());
 `.trim();
+}
+
+/**
+ * Write the address bar without notifying gtag.
+ *
+ * Enhanced measurement wraps history.replaceState after gtag.js loads and
+ * sends a page_view for every call. The bootstrap saved the native method
+ * first. Falling back to history.replaceState only happens when that script
+ * did not run, which is also when gtag is absent.
+ */
+export function replaceUrl(href: string): void {
+  if (typeof window === 'undefined') return;
+  const native = window.__vdbcReplaceState;
+  if (typeof native === 'function') {
+    native(null, '', href);
+    return;
+  }
+  window.history.replaceState(null, '', href);
 }
 
 export function gaCookieNames(cookieHeader: string): string[] {
@@ -313,5 +339,6 @@ declare global {
     dataLayer?: unknown[];
     gtag?: Gtag;
     __vdbcGa?: number;
+    __vdbcReplaceState?: (data: unknown, unused: string, url?: string | URL | null) => void;
   }
 }
